@@ -21,6 +21,7 @@ app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
+
 # Initialize MySQL
 mysql = MySQL(app)
 
