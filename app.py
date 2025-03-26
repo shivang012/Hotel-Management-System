@@ -21,7 +21,6 @@ app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
-
 # Initialize MySQL
 mysql = MySQL(app)
 
@@ -1228,34 +1227,89 @@ def update_guest(id):
 
 # API Routes for Dashboard Statistics
 
-@app.route('/dashboard')           # Deepseek - Dashboard 
+@app.route('/dashboard')
 def dashboard():
     if 'logged_in' not in session:
         return redirect(url_for('login'))
 
-    # Fetch dashboard stats from the API
-    response = requests.get('http://127.0.0.1:5000/api/dashboard/stats')
-    if response.status_code == 200:
-        stats = response.json()
-    else:
-         stats = {
+    try:
+        # Fetch dashboard stats directly from the database
+        cur = mysql.connection.cursor()
+        
+        # Get current date
+        today = datetime.now().date()
+        
+        # Get basic stats
+        cur.execute("SELECT COUNT(*) as total FROM rooms")
+        total_rooms = cur.fetchone()['total']
+        
+        cur.execute("""
+            SELECT COUNT(DISTINCT r.id) as occupied 
+            FROM rooms r
+            JOIN reservations res ON res.room_id = r.id
+            WHERE res.status IN ('checked-in', 'confirmed')
+            AND res.check_in_date <= %s AND res.check_out_date > %s
+        """, (today, today))
+        occupied_rooms = cur.fetchone()['occupied']
+        
+        cur.execute("SELECT COUNT(*) as maintenance FROM rooms WHERE status = 'maintenance'")
+        maintenance_rooms = cur.fetchone()['maintenance']
+        
+        available_rooms = total_rooms - occupied_rooms - maintenance_rooms
+        
+        # Get recent reservations
+        cur.execute("""
+            SELECT r.id, r.check_in_date, r.check_out_date, r.status, r.total_price,
+                g.name as guest_name, rt.name as room_type_name
+            FROM reservations r
+            JOIN guests g ON r.guest_id = g.id
+            JOIN room_types rt ON r.room_type_id = rt.id
+            ORDER BY r.created_at DESC
+            LIMIT 5
+        """)
+        recent_reservations = cur.fetchall()
+        
+        # Format dates
+        for res in recent_reservations:
+            res['check_in_date'] = res['check_in_date'].strftime('%Y-%m-%d')
+            res['check_out_date'] = res['check_out_date'].strftime('%Y-%m-%d')
+        
+        # Basic stats for initial page load
+        stats = {
+            'total_rooms': total_rooms,
+            'occupied_rooms': occupied_rooms,
+            'available_rooms': available_rooms,
+            'maintenance_rooms': maintenance_rooms,
+            'occupancy_rate': round((occupied_rooms / (total_rooms - maintenance_rooms) * 100), 2) if (total_rooms - maintenance_rooms) > 0 else 0,
+            'todays_checkins': 0,  # Will be updated by JavaScript
+            'todays_checkouts': 0,  # Will be updated by JavaScript
+            'revenue': {
+                'today': 0  # Will be updated by JavaScript
+            },
+            'recent_reservations': recent_reservations
+        }
+        
+        return render_template('index.html', stats=stats)
+        
+    except Exception as e:
+        # Fallback if there's an error
+        stats = {
             'total_rooms': 0,
             'occupied_rooms': 0,
             'available_rooms': 0,
+            'maintenance_rooms': 0,
             'occupancy_rate': 0,
             'todays_checkins': 0,
             'todays_checkouts': 0,
-            'todays_reservations': 0,
-            'total_guests': 0,
             'revenue': {
-                'today': 0,
-                'yesterday': 0,
-                'month': 0
+                'today': 0
             },
             'recent_reservations': []
         }
-
-    return render_template('index.html', stats=stats)
+        return render_template('index.html', stats=stats)
+        
+    finally:
+        cur.close()
 
 @app.route('/api/dashboard/stats', methods=['GET'])
 def get_dashboard_stats():
@@ -1264,25 +1318,33 @@ def get_dashboard_stats():
 
     cur = mysql.connection.cursor()
 
-    # Get current date
-    today = datetime.now().date()
-    yesterday = today - timedelta(days=1)
-    tomorrow = today + timedelta(days=1)
-
     try:
-        # Get total rooms
-        cur.execute("SELECT COUNT(*) as total FROM rooms")
+        # Get current date
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+        tomorrow = today + timedelta(days=1)
+
+        # Get total rooms count (excluding maintenance)
+        cur.execute("SELECT COUNT(*) as total FROM rooms WHERE status != 'maintenance'")
         total_rooms = cur.fetchone()['total']
 
-        # Get occupied rooms
+        # Get occupied rooms (both checked-in and reserved)
         cur.execute("""
-            SELECT COUNT(*) as total FROM reservations 
-            WHERE status = 'checked-in' 
-            AND check_in_date <= %s AND check_out_date > %s
+            SELECT COUNT(DISTINCT r.id) as occupied 
+            FROM rooms r
+            JOIN reservations res ON res.room_id = r.id
+            WHERE res.status IN ('checked-in', 'confirmed')
+            AND res.check_in_date <= %s AND res.check_out_date > %s
         """, (today, today))
-        occupied_rooms = cur.fetchone()['total']
+        occupied_result = cur.fetchone()
+        occupied_rooms = occupied_result['occupied'] if occupied_result else 0
 
-        # Get available rooms
+        # Get maintenance rooms
+        cur.execute("SELECT COUNT(*) as maintenance FROM rooms WHERE status = 'maintenance'")
+        maintenance_result = cur.fetchone()
+        maintenance_rooms = maintenance_result['maintenance'] if maintenance_result else 0
+
+        # Calculate available rooms
         available_rooms = total_rooms - occupied_rooms
 
         # Get today's check-ins
@@ -1302,8 +1364,8 @@ def get_dashboard_stats():
         # Get today's reservations
         cur.execute("""
             SELECT COUNT(*) as total FROM reservations 
-            WHERE created_at >= %s AND created_at < %s
-        """, (today, tomorrow))
+            WHERE DATE(created_at) = %s
+        """, (today,))
         todays_reservations = cur.fetchone()['total']
 
         # Get total guests
@@ -1313,17 +1375,19 @@ def get_dashboard_stats():
         # Get revenue stats
         cur.execute("""
             SELECT 
-                SUM(CASE WHEN check_in_date = %s THEN total_price ELSE 0 END) as today_revenue,
-                SUM(CASE WHEN check_in_date = %s THEN total_price ELSE 0 END) as yesterday_revenue,
-                SUM(CASE WHEN check_in_date >= DATE_SUB(%s, INTERVAL 30 DAY) THEN total_price ELSE 0 END) as month_revenue
+                COALESCE(SUM(CASE WHEN DATE(check_in_date) = %s THEN total_price ELSE 0 END), 0) as today_revenue,
+                COALESCE(SUM(CASE WHEN DATE(check_in_date) = %s THEN total_price ELSE 0 END), 0) as yesterday_revenue,
+                COALESCE(SUM(CASE WHEN check_in_date >= DATE_SUB(%s, INTERVAL 30 DAY) THEN total_price ELSE 0 END), 0) as month_revenue
             FROM reservations
             WHERE status != 'cancelled'
         """, (today, yesterday, today))
-        revenue = cur.fetchone() or {'today_revenue': 0, 'yesterday_revenue': 0, 'month_revenue': 0}
+        revenue = cur.fetchone()
 
-        # Get occupancy rate
-        occupancy_rate = round(
-            (occupied_rooms / total_rooms * 100), 2) if total_rooms > 0 else 0
+        # Get occupancy rate (excluding maintenance rooms)
+        if total_rooms > 0:
+            occupancy_rate = round((occupied_rooms / total_rooms) * 100, 2)
+        else:
+            occupancy_rate = 0
 
         # Get recent reservations
         cur.execute("""
@@ -1337,7 +1401,7 @@ def get_dashboard_stats():
         """)
         recent_reservations = cur.fetchall()
 
-        # Format dates for recent reservations
+        # Format dates for JSON response
         for res in recent_reservations:
             res['check_in_date'] = res['check_in_date'].strftime('%Y-%m-%d')
             res['check_out_date'] = res['check_out_date'].strftime('%Y-%m-%d')
@@ -1347,15 +1411,16 @@ def get_dashboard_stats():
             'total_rooms': total_rooms,
             'occupied_rooms': occupied_rooms,
             'available_rooms': available_rooms,
+            'maintenance_rooms': maintenance_rooms,
             'occupancy_rate': occupancy_rate,
             'todays_checkins': todays_checkins,
             'todays_checkouts': todays_checkouts,
             'todays_reservations': todays_reservations,
             'total_guests': total_guests,
             'revenue': {
-                'today': float(revenue['today_revenue'] or 0),
-                'yesterday': float(revenue['yesterday_revenue'] or 0),
-                'month': float(revenue['month_revenue'] or 0)
+                'today': float(revenue['today_revenue']),
+                'yesterday': float(revenue['yesterday_revenue']),
+                'month': float(revenue['month_revenue'])
             },
             'recent_reservations': recent_reservations
         }
@@ -1363,11 +1428,11 @@ def get_dashboard_stats():
         return jsonify(stats)
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error in get_dashboard_stats: {str(e)}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
     finally:
         cur.close()
-
 # API Routes for Reports
 
 
