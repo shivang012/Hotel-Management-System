@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Management System</title>
+    <link rel="stylesheet" href="static\styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>Horizon</h1>
+                <p>Hotel Management</p>
+            </div>
+            
+            <nav class="nav">
+                <ul>
+                    <li class="active"><a href="#dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="#reservations"><i class="fas fa-calendar-check"></i> Reservations</a></li>
+                    <li><a href="#rooms"><i class="fas fa-door-open"></i> Rooms</a></li>
+                    <li><a href="#guests"><i class="fas fa-users"></i> Guests</a></li>
+                    <li><a href="#services"><i class="fas fa-concierge-bell"></i> Services</a></li>
+                    <li><a href="#billing"><i class="fas fa-file-invoice-dollar"></i> Billing</a></li>
+                    <li><a href="#reports"><i class="fas fa-chart-pie"></i> Reports</a></li>
+                    <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
+                </ul>
+            </nav>
+            
+            <div class="logout">
+                <a href="#logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="header">
+                <div class="search-bar">
+                    <input type="text" placeholder="Search...">
+                    <button><i class="fas fa-search"></i></button>
+                </div>
+                
+                <div class="user-profile">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="profile">
+                        <img src="profile-placeholder.jpg" alt="Profile">
+                        <span>Admin User</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content active">
+                <h2>Dashboard</h2>
+                
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-value">{{ stats.occupancy_rate | default(0) }}%</div>
+                        <div class="stat-label">Occupancy</div>
+                        <div class="stat-icon"><i class="fas fa-bed"></i></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{{ stats.todays_checkins | default(0) }}</div>
+                        <div class="stat-label">Check-ins Today</div>
+                        <div class="stat-icon"><i class="fas fa-sign-in-alt"></i></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{{ stats.todays_checkouts | default(0) }}</div>
+                        <div class="stat-label">Check-outs Today</div>
+                        <div class="stat-icon"><i class="fas fa-sign-out-alt"></i></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">${{ stats.revenue.today | default(0) }}</div>
+                        <div class="stat-label">Today's Revenue</div>
+                        <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-content">
+                    <div class="recent-bookings">
+                        <h3>Recent Bookings</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Guest Name</th>
+                                    <th>Room</th>
+                                    <th>Check-in</th>
+                                    <th>Check-out</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for res in stats.recent_reservations | default([]) %}
+                                <tr>
+                                    <td>{{ res.guest_name }}</td>
+                                    <td>{{ res.room_type_name }}</td>
+                                    <td>{{ res.check_in_date }}</td>
+                                    <td>{{ res.check_out_date }}</td>
+                                    <td><span class="status arriving">{{ res.status }}</span></td>
+                                    <td>
+                                        <button class="btn-action"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-action"><i class="fas fa-edit"></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <a href="#" class="view-all">View All Bookings</a>
+                    </div>
+                    
+                    <div class="availability-chart">
+                        <h3>Room Availability</h3>
+                        <div class="chart-container" id="availability-chart">
+                            <!-- Chart will be rendered here by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Reservation Section (initially hidden) -->
+            <section id="reservations" class="content">
+                <h2>Reservations</h2>
+                
+                <div class="action-bar">
+                    <button class="btn-primary" id="new-reservation-btn"><i class="fas fa-plus"></i> New Reservation</button>
+                    <div class="filter-options">
+                        <select id="reservation-filter">
+                            <option value="all">All Reservations</option>
+                            <option value="upcoming">Upcoming</option>
+                            <option value="in-house">In House</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="reservation-list">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reservation ID</th>
+                                <th>Guest Name</th>
+                                <th>Room Type</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reservation-table-body">
+                            <!-- This will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Reservation Form Modal (hidden by default) -->
+                <div id="reservation-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close">&times;</span>
+                        <h3>New Reservation</h3>
+                        
+                        <form id="reservation-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="guest-name">Guest Name</label>
+                                    <input type="text" id="guest-name" name="guest-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="guest-email">Email</label>
+                                    <input type="email" id="guest-email" name="guest-email" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="guest-phone">Phone</label>
+                                    <input type="tel" id="guest-phone" name="guest-phone">
+                                </div>
+                                <div class="form-group">
+                                    <label for="num-guests">Number of Guests</label>
+                                    <input type="number" id="num-guests" name="num-guests" min="1" value="1">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="check-in-date">Check-in Date</label>
+                                    <input type="date" id="check-in-date" name="check-in-date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="check-out-date">Check-out Date</label>
+                                    <input type="date" id="check-out-date" name="check-out-date" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="room-type">Room Type</label>
+                                    <select id="room-type" name="room-type" required>
+                                        <option value="">Select Room Type</option>
+                                        <option value="standard">Standard</option>
+                                        <option value="deluxe">Deluxe</option>
+                                        <option value="suite">Suite</option>
+                                        <option value="executive">Executive Suite</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="room-preference">Room Preference</label>
+                                    <select id="room-preference" name="room-preference">
+                                        <option value="any">Any Available</option>
+                                        <option value="high-floor">High Floor</option>
+                                        <option value="low-floor">Low Floor</option>
+                                        <option value="quiet">Quiet Area</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="special-requests">Special Requests</label>
+                                <textarea id="special-requests" name="special-requests" rows="3"></textarea>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" id="cancel-reservation">Cancel</button>
+                                <button type="submit" class="btn-primary">Create Reservation</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Add other sections here (Rooms, Guests, Services, etc.) following similar pattern -->
+        </main>
+    </div>
+    
+    <script src="static\index.js"></script>
+</body>
+</html>
