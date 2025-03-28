@@ -249,6 +249,145 @@
                 </div>
             </section>
             
+            <!-- Add this section with the other content sections -->
+<section id="guests" class="content">
+    <h2>Guest Management</h2>
+    
+    <div class="action-bar">
+        <button class="btn-primary" id="new-guest-btn"><i class="fas fa-plus"></i> New Guest</button>
+        <div class="filter-options">
+            <select id="guest-filter">
+                <option value="all">All Guests</option>
+                <option value="frequent">Frequent Guests</option>
+                <option value="vip">VIP Guests</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="guest-list">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Reservations</th>
+                    <th>Last Stay</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="guest-table-body">
+                <!-- Will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Guest Form Modal (hidden by default) -->
+    <div id="guest-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="guest-modal-title">New Guest</h3>
+            
+            <form id="guest-form">
+                <input type="hidden" id="guest-id">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="guest-name">Full Name*</label>
+                        <input type="text" id="guest-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-email">Email*</label>
+                        <input type="email" id="guest-email" name="email" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="guest-phone">Phone</label>
+                        <input type="tel" id="guest-phone" name="phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-address">Address</label>
+                        <input type="text" id="guest-address" name="address">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="guest-notes">Notes</label>
+                    <textarea id="guest-notes" name="notes" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="guest-vip" name="vip"> VIP Guest
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancel-guest">Cancel</button>
+                    <button type="submit" class="btn-primary" id="save-guest">Save Guest</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Guest Details Modal (hidden by default) -->
+    <div id="guest-details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Guest Details</h3>
+            
+            <div class="guest-details-header">
+                <div class="guest-avatar">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="guest-details-vip" class="vip-badge">VIP</span>
+                </div>
+                <div class="guest-info">
+                    <h4 id="guest-details-name"></h4>
+                    <p id="guest-details-email"></p>
+                    <p id="guest-details-phone"></p>
+                </div>
+            </div>
+            
+            <div class="guest-details-content">
+                <div class="guest-details-section">
+                    <h5>Contact Information</h5>
+                    <p><strong>Address:</strong> <span id="guest-details-address"></span></p>
+                    <p><strong>Member Since:</strong> <span id="guest-details-created"></span></p>
+                </div>
+                
+                <div class="guest-details-section">
+                    <h5>Reservation History</h5>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reservation ID</th>
+                                <th>Room Type</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="guest-reservations-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="guest-details-section">
+                    <h5>Notes</h5>
+                    <p id="guest-details-notes"></p>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" id="close-guest-details">Close</button>
+            </div>
+        </div>
+    </div>
+</section>
             <!-- Add other sections here (Rooms, Guests, Services, etc.) following similar pattern -->
         </main>
     </div>

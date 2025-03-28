@@ -83,6 +83,10 @@ CREATE INDEX idx_users_username ON users (username);
 INSERT INTO users (username, password, role) 
 VALUES ('admin', SHA2('adminpassword', 256), 'admin');
 
+-- my username and password
+INSERT INTO users (username, password, role)
+VALUES ('tithi', SHA2('hms@123', 256), 'admin');
+
 -- Insert a sample room type
 INSERT INTO room_types (name, description, base_price, amenities) 
 VALUES ('Deluxe Room', 'A luxurious room with a king-sized bed and ocean view.', 200.00, '["WiFi", "TV", "Mini Bar"]');

@@ -17,7 +17,7 @@ CORS(app)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'  # Update with your MySQL username
-app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
+app.config['MYSQL_PASSWORD'] = 'tithi2002'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
@@ -1025,6 +1025,11 @@ def delete_room_type(id):
 
 # API Routes for Guests
 
+@app.route('/guests')
+def guests():
+    if 'logged_in' not in session:
+        return redirect(url_for('login'))
+    return render_template('guests.html')
 
 @app.route('/api/guests', methods=['GET'])
 def get_guests():
@@ -1224,6 +1229,79 @@ def update_guest(id):
     else:
         cur.close()
         return jsonify({'message': 'No changes to update'})
+    
+# You might want to add a POST endpoint for creating new guests if not already present (Newly added)
+@app.route('/api/guests', methods=['POST'])
+def create_guest():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+
+    # Validate required fields
+    required_fields = ['name', 'email']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    # Validate email format
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", data['email']):
+        return jsonify({'error': 'Invalid email format'}), 400
+
+    cur = mysql.connection.cursor()
+
+    try:
+        # Check if email already exists
+        cur.execute("SELECT id FROM guests WHERE email = %s", (data['email'],))
+        existing_guest = cur.fetchone()
+
+        if existing_guest:
+            return jsonify({'error': 'Email already exists for another guest'}), 400
+
+        # Create the guest
+        cur.execute("""
+            INSERT INTO guests (name, email, phone, address, notes)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            data['name'],
+            data['email'],
+            data.get('phone', ''),
+            data.get('address', ''),
+            data.get('notes', '')
+        ))
+
+        mysql.connection.commit()
+        guest_id = cur.lastrowid
+
+        # Get the created guest
+        cur.execute("""
+            SELECT g.*, 
+                (SELECT COUNT(*) FROM reservations WHERE guest_id = g.id) as reservation_count,
+                (SELECT MAX(check_out_date) FROM reservations WHERE guest_id = g.id) as last_stay
+            FROM guests g
+            WHERE g.id = %s
+        """, (guest_id,))
+
+        new_guest = cur.fetchone()
+
+        # Format dates for JSON response
+        if new_guest['created_at']:
+            new_guest['created_at'] = new_guest['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if new_guest['last_stay']:
+            new_guest['last_stay'] = new_guest['last_stay'].strftime('%Y-%m-%d')
+
+        return jsonify({
+            'success': True,
+            'message': 'Guest created successfully',
+            'guest': new_guest
+        })
+
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        cur.close()
 
 # API Routes for Dashboard Statistics
 

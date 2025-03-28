@@ -521,3 +521,83 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Guest Management Styles */
+.guest-list {
+    margin-top: 20px;
+}
+
+.guest-details-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.guest-avatar {
+    position: relative;
+    margin-right: 20px;
+}
+
+.guest-avatar i {
+    font-size: 60px;
+    color: var(--primary-color);
+}
+
+.vip-badge {
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    background-color: var(--secondary-color);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    display: none;
+}
+
+.guest-info h4 {
+    margin: 0 0 5px 0;
+    color: var(--primary-dark);
+}
+
+.guest-info p {
+    margin: 5px 0;
+    color: var(--text-color);
+}
+
+.guest-details-content {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.guest-details-section {
+    margin-bottom: 25px;
+}
+
+.guest-details-section h5 {
+    margin-bottom: 10px;
+    color: var(--primary-dark);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+/* Responsive adjustments for guest details */
+@media (max-width: 768px) {
+    .guest-details-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .guest-avatar {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+    
+    .guest-details-content {
+        max-height: 50vh;
+    }
+}
