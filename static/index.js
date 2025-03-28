@@ -734,6 +734,332 @@ function init() {
     setupGuestManagement(); // Add this line
 }
 
+// Room Management Functions
+function setupRoomManagement() {
+    // DOM Elements
+    const roomTableBody = document.getElementById('room-table-body');
+    const roomModal = document.getElementById('room-modal');
+    const roomDetailsModal = document.getElementById('room-details-modal');
+    const roomForm = document.getElementById('room-form');
+    const newRoomBtn = document.getElementById('new-room-btn');
+    const cancelRoomBtn = document.getElementById('cancel-room');
+    const closeRoomDetailsBtn = document.getElementById('close-room-details');
+    const roomFilter = document.getElementById('room-filter');
+    const roomTypeSelect = document.getElementById('room-type');
+    
+    // Only proceed if room management elements exist
+    if (!roomTableBody) return;
+    
+    // Event Listeners
+    newRoomBtn.addEventListener('click', openRoomModal);
+    cancelRoomBtn.addEventListener('click', closeRoomModal);
+    closeRoomDetailsBtn.addEventListener('click', closeRoomDetailsModal);
+    roomForm.addEventListener('submit', handleRoomFormSubmit);
+    roomFilter.addEventListener('change', filterRooms);
+    
+    // Load initial rooms and room types
+    loadRoomTypes().then(loadRooms);
+    
+    function loadRoomTypes() {
+        return fetch('/api/room-types')
+            .then(response => response.json())
+            .then(roomTypes => {
+                // Populate room type dropdown
+                roomTypeSelect.innerHTML = '<option value="">Select Room Type</option>';
+                roomTypes.forEach(rt => {
+                    const option = document.createElement('option');
+                    option.value = rt.id;
+                    option.textContent = `${rt.name} ($${rt.base_price}/night)`;
+                    roomTypeSelect.appendChild(option);
+                });
+                return roomTypes;
+            })
+            .catch(error => {
+                console.error('Error loading room types:', error);
+                showNotification('Failed to load room types', 'error');
+            });
+    }
+    
+    function loadRooms(status = 'all') {
+        let url = '/api/rooms';
+        if (status !== 'all') {
+            url += `?status=${status}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(rooms => {
+                renderRoomTable(rooms);
+            })
+            .catch(error => {
+                console.error('Error loading rooms:', error);
+                showNotification('Failed to load rooms', 'error');
+            });
+    }
+    
+    function renderRoomTable(rooms) {
+        roomTableBody.innerHTML = '';
+        
+        if (rooms.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="6">No rooms found</td>';
+            roomTableBody.appendChild(row);
+            return;
+        }
+        
+        rooms.forEach(room => {
+            const row = document.createElement('tr');
+            
+            // Format last maintenance date
+            const lastMaintenance = room.last_maintenance ? new Date(room.last_maintenance).toLocaleDateString() : 'N/A';
+            
+            row.innerHTML = `
+                <td>${room.room_number}</td>
+                <td>${room.room_type_name}</td>
+                <td><span class="status ${room.status}">${room.status.charAt(0).toUpperCase() + room.status.slice(1)}</span></td>
+                <td>$${room.base_price}/night</td>
+                <td>${lastMaintenance}</td>
+                <td>
+                    <button class="btn-action view-room" data-id="${room.id}">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-action edit-room" data-id="${room.id}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-action delete-room" data-id="${room.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            
+            roomTableBody.appendChild(row);
+        });
+        
+        // Add event listeners to action buttons
+        document.querySelectorAll('.view-room').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const roomId = this.getAttribute('data-id');
+                viewRoomDetails(roomId);
+            });
+        });
+        
+        document.querySelectorAll('.edit-room').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const roomId = this.getAttribute('data-id');
+                editRoom(roomId);
+            });
+        });
+        
+        document.querySelectorAll('.delete-room').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const roomId = this.getAttribute('data-id');
+                deleteRoom(roomId);
+            });
+        });
+    }
+    
+    function openRoomModal() {
+        document.getElementById('room-modal-title').textContent = 'New Room';
+        document.getElementById('room-id').value = '';
+        roomForm.reset();
+        roomModal.style.display = 'block';
+    }
+    
+    function closeRoomModal() {
+        roomModal.style.display = 'none';
+    }
+    
+    function closeRoomDetailsModal() {
+        roomDetailsModal.style.display = 'none';
+    }
+    
+    function viewRoomDetails(roomId) {
+        fetch(`/api/rooms/${roomId}`)
+            .then(response => response.json())
+            .then(room => {
+                // Populate room details
+                document.getElementById('room-details-number').textContent = `Room ${room.room_number}`;
+                document.getElementById('room-details-type').textContent = room.room_type_name;
+                document.getElementById('room-details-rate').textContent = `$${room.base_price}/night`;
+                document.getElementById('room-details-status').textContent = room.status.charAt(0).toUpperCase() + room.status.slice(1);
+                document.getElementById('room-details-notes').textContent = room.notes || 'No notes';
+                
+                // Format dates
+                if (room.updated_at) {
+                    const updatedDate = new Date(room.updated_at);
+                    document.getElementById('room-details-updated').textContent = 
+                        updatedDate.toLocaleDateString() + ' at ' + updatedDate.toLocaleTimeString();
+                } else {
+                    document.getElementById('room-details-updated').textContent = 'N/A';
+                }
+                
+                // Set status badge
+                const statusBadge = document.getElementById('room-status-badge');
+                statusBadge.textContent = room.status.charAt(0).toUpperCase() + room.status.slice(1);
+                statusBadge.className = 'status ' + room.status;
+                
+                // Populate current reservation
+                const reservationsBody = document.getElementById('room-reservations-body');
+                reservationsBody.innerHTML = '';
+                
+                if (room.reservation_id) {
+                    fetch(`/api/reservations/${room.reservation_id}`)
+                        .then(response => response.json())
+                        .then(reservation => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${reservation.guest_name}</td>
+                                <td>${reservation.check_in_date}</td>
+                                <td>${reservation.check_out_date}</td>
+                                <td><span class="status ${reservation.status.toLowerCase()}">${reservation.status}</span></td>
+                            `;
+                            reservationsBody.appendChild(row);
+                        })
+                        .catch(() => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = '<td colspan="4">Error loading reservation</td>';
+                            reservationsBody.appendChild(row);
+                        });
+                } else {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="4">No current reservation</td>';
+                    reservationsBody.appendChild(row);
+                }
+                
+                // Populate maintenance history (simplified example)
+                const maintenanceBody = document.getElementById('room-maintenance-body');
+                maintenanceBody.innerHTML = '';
+                
+                // In a real app, you would fetch this from an API endpoint
+                const maintenanceHistory = [
+                    { date: '2023-01-15', description: 'Routine cleaning', staff: 'Housekeeping' },
+                    { date: '2022-12-01', description: 'TV replacement', staff: 'Maintenance' }
+                ];
+                
+                if (maintenanceHistory.length > 0) {
+                    maintenanceHistory.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${item.date}</td>
+                            <td>${item.description}</td>
+                            <td>${item.staff}</td>
+                        `;
+                        maintenanceBody.appendChild(row);
+                    });
+                } else {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="3">No maintenance history</td>';
+                    maintenanceBody.appendChild(row);
+                }
+                
+                // Show modal
+                roomDetailsModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading room details:', error);
+                showNotification('Failed to load room details', 'error');
+            });
+    }
+    
+    function editRoom(roomId) {
+        fetch(`/api/rooms/${roomId}`)
+            .then(response => response.json())
+            .then(room => {
+                document.getElementById('room-modal-title').textContent = 'Edit Room';
+                document.getElementById('room-id').value = room.id;
+                document.getElementById('room-number').value = room.room_number;
+                document.getElementById('room-type').value = room.room_type_id;
+                document.getElementById('room-status').value = room.status;
+                document.getElementById('room-notes').value = room.notes || '';
+                
+                roomModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading room for edit:', error);
+                showNotification('Failed to load room for editing', 'error');
+            });
+    }
+    
+    function handleRoomFormSubmit(e) {
+        e.preventDefault();
+        
+        const roomId = document.getElementById('room-id').value;
+        const formData = new FormData(roomForm);
+        const roomData = {
+            room_number: formData.get('room_number'),
+            room_type_id: formData.get('room_type_id'),
+            status: formData.get('status'),
+            notes: formData.get('notes')
+        };
+        
+        const method = roomId ? 'PUT' : 'POST';
+        const url = roomId ? `/api/rooms/${roomId}` : '/api/rooms';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(roomData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.error || 'Failed to save room');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            closeRoomModal();
+            loadRooms(roomFilter.value);
+            showNotification(roomId ? 'Room updated successfully' : 'Room created successfully');
+        })
+        .catch(error => {
+            console.error('Error saving room:', error);
+            showNotification(error.message, 'error');
+        });
+    }
+    
+    function deleteRoom(roomId) {
+        if (confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
+            fetch(`/api/rooms/${roomId}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || 'Failed to delete room');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                loadRooms(roomFilter.value);
+                showNotification('Room deleted successfully');
+            })
+            .catch(error => {
+                console.error('Error deleting room:', error);
+                showNotification(error.message, 'error');
+            });
+        }
+    }
+    
+    function filterRooms() {
+        loadRooms(roomFilter.value);
+    }
+}
+
+// Update the init function to include room management setup
+function init() {
+    setupNavigation();
+    renderAvailabilityChart();
+    setupReservationModal();
+    populateReservationsTable();
+    setupDateValidation();
+    setupGuestManagement();
+    setupRoomManagement(); // Add this line
+}
     // Initialize the app
     init();
 });
