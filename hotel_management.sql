@@ -106,3 +106,24 @@ INSERT INTO reservations (
 ) VALUES (
     1, 1, '2023-10-01', '2023-10-05', 2, 800.00, 'confirmed', 1
 );
+
+-- Create the services table if it doesn't exist
+CREATE TABLE IF NOT EXISTS services (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Insert sample data if the table is empty
+INSERT INTO services (name, type, price, status, description)
+SELECT * FROM (
+    SELECT 'Room Cleaning', 'cleaning', 25.00, 'active', 'Daily room cleaning service' UNION
+    SELECT 'Airport Transfer', 'transport', 50.00, 'active', 'Round-trip airport transfer' UNION
+    SELECT 'Spa Package', 'spa', 120.00, 'active', 'Full spa treatment package'
+) AS tmp
+WHERE NOT EXISTS (SELECT 1 FROM services LIMIT 1);

@@ -734,6 +734,205 @@ function init() {
     setupGuestManagement(); // Add this line
 }
 
+// Service Management Functions
+function setupServiceManagement() {
+    const serviceTableBody = document.getElementById('service-table-body');
+    const serviceModal = document.getElementById('service-modal');
+    const serviceForm = document.getElementById('service-form');
+    const newServiceBtn = document.getElementById('new-service-btn');
+    const cancelServiceBtn = document.getElementById('cancel-service');
+    const serviceSearch = document.getElementById('service-search');
+    const searchServicesBtn = document.getElementById('search-services-btn');
+    const serviceFilter = document.getElementById('service-filter');
+
+    if (!serviceTableBody) return;
+
+    // Event Listeners
+    newServiceBtn.addEventListener('click', openServiceModal);
+    cancelServiceBtn.addEventListener('click', closeServiceModal);
+    serviceForm.addEventListener('submit', handleServiceFormSubmit);
+    searchServicesBtn.addEventListener('click', loadServices);
+    serviceSearch.addEventListener('keypress', (e) => e.key === 'Enter' && loadServices());
+    serviceFilter.addEventListener('change', loadServices);
+    window.addEventListener('click', (e) => e.target === serviceModal && closeServiceModal());
+    document.querySelectorAll('#service-modal .close').forEach(btn => 
+        btn.addEventListener('click', closeServiceModal));
+
+    // Load initial services
+    loadServices();
+
+    function loadServices() {
+        const searchTerm = serviceSearch.value.trim();
+        const filter = serviceFilter.value;
+        
+        let url = '/api/services';
+        const params = new URLSearchParams();
+        
+        if (searchTerm) params.append('search', searchTerm);
+        if (filter !== 'all') params.append('status', filter);
+        
+        if (params.toString()) url += `?${params.toString()}`;
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(services => {
+                renderServiceTable(services);
+            })
+            .catch(error => {
+                console.error('Error loading services:', error);
+                showNotification('Failed to load services. Please try again.', 'error');
+            });
+    }
+
+    function renderServiceTable(services) {
+        serviceTableBody.innerHTML = '';
+        
+        if (!services || services.length === 0) {
+            serviceTableBody.innerHTML = '<tr><td colspan="5">No services found</td></tr>';
+            return;
+        }
+
+        services.forEach(service => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${service.name}</td>
+                <td>${formatServiceType(service.type)}</td>
+                <td>${service.price.toLocaleString('en-US', {style:'currency', currency:'USD'})}</td>
+                <td><span class="status ${service.status}">${service.status.charAt(0).toUpperCase() + service.status.slice(1)}</span></td>
+                <td>
+                    <button class="btn-action edit-service" data-id="${service.id}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-action delete-service" data-id="${service.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            serviceTableBody.appendChild(row);
+        });
+
+        // Add event listeners to action buttons
+        document.querySelectorAll('.edit-service').forEach(btn => {
+            btn.addEventListener('click', () => editService(btn.dataset.id));
+        });
+
+        document.querySelectorAll('.delete-service').forEach(btn => {
+            btn.addEventListener('click', () => deleteService(btn.dataset.id));
+        });
+    }
+
+    function formatServiceType(type) {
+        const types = {
+            'room-service': 'Room Service',
+            'cleaning': 'Cleaning',
+            'transport': 'Transport',
+            'spa': 'Spa',
+            'other': 'Other'
+        };
+        return types[type] || type;
+    }
+
+    function openServiceModal() {
+        document.getElementById('service-modal-title').textContent = 'New Service';
+        document.getElementById('service-id').value = '';
+        serviceForm.reset();
+        serviceModal.style.display = 'block';
+    }
+
+    function closeServiceModal() {
+        serviceModal.style.display = 'none';
+    }
+
+    function editService(serviceId) {
+        fetch(`/api/services/${serviceId}`)
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to fetch service');
+                return response.json();
+            })
+            .then(service => {
+                document.getElementById('service-modal-title').textContent = 'Edit Service';
+                document.getElementById('service-id').value = service.id;
+                document.getElementById('service-name').value = service.name;
+                document.getElementById('service-type').value = service.type;
+                document.getElementById('service-price').value = service.price;
+                document.getElementById('service-status').value = service.status;
+                document.getElementById('service-description').value = service.description || '';
+                serviceModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error fetching service:', error);
+                showNotification('Failed to load service details', 'error');
+            });
+    }
+
+    function handleServiceFormSubmit(e) {
+        e.preventDefault();
+        
+        const serviceId = document.getElementById('service-id').value;
+        const formData = new FormData(serviceForm);
+        const price = parseFloat(formData.get('price'));
+        
+        if (isNaN(price) || price <= 0) {
+            showNotification('Please enter a valid positive price', 'error');
+            return;
+        }
+
+        const serviceData = {
+            name: formData.get('name').trim(),
+            type: formData.get('type'),
+            price: price,
+            status: formData.get('status'),
+            description: formData.get('description').trim()
+        };
+
+        const method = serviceId ? 'PUT' : 'POST';
+        const url = serviceId ? `/api/services/${serviceId}` : '/api/services';
+
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(serviceData)
+        })
+        .then(response => {
+            if (!response.ok) return response.json().then(err => { throw new Error(err.error); });
+            return response.json();
+        })
+        .then(data => {
+            closeServiceModal();
+            loadServices();
+            showNotification(data.message || (serviceId ? 'Service updated' : 'Service created'));
+        })
+        .catch(error => {
+            console.error('Error saving service:', error);
+            showNotification(error.message || 'Failed to save service', 'error');
+        });
+    }
+
+    function deleteService(serviceId) {
+        if (!confirm('Are you sure you want to delete this service?')) return;
+        
+        fetch(`/api/services/${serviceId}`, { method: 'DELETE' })
+            .then(response => {
+                if (!response.ok) return response.json().then(err => { throw new Error(err.error); });
+                return response.json();
+            })
+            .then(data => {
+                loadServices();
+                showNotification(data.message || 'Service deleted');
+            })
+            .catch(error => {
+                console.error('Error deleting service:', error);
+                showNotification(error.message || 'Failed to delete service', 'error');
+            });
+    }
+}
+
+
 // Room Management Functions
 function setupRoomManagement() {
     // DOM Elements
@@ -1059,7 +1258,9 @@ function init() {
     setupDateValidation();
     setupGuestManagement();
     setupRoomManagement(); // Add this line
+    setupServiceManagement(); // Add this line
 }
     // Initialize the app
     init();
 });
+
