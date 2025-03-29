@@ -127,3 +127,69 @@ SELECT * FROM (
     SELECT 'Spa Package', 'spa', 120.00, 'active', 'Full spa treatment package'
 ) AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM services LIMIT 1);
+
+CREATE TABLE IF NOT EXISTS billing (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id INT NOT NULL,
+    guest_id INT NOT NULL,
+    room_charge DECIMAL(10,2) NOT NULL,
+    service_charges DECIMAL(10,2) DEFAULT 0.00,
+    tax_amount DECIMAL(10,2) NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    payment_status ENUM('pending', 'paid', 'partially_paid', 'cancelled') DEFAULT 'pending',
+    payment_method VARCHAR(50),
+    payment_date TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id),
+    FOREIGN KEY (guest_id) REFERENCES guests(id)
+);
+
+-- Create a view for billing details
+CREATE OR REPLACE VIEW billing_details AS
+SELECT 
+    b.*,
+    r.check_in_date,
+    r.check_out_date,
+    g.name AS guest_name,
+    g.email AS guest_email,
+    rt.name AS room_type,
+    (SELECT SUM(amount) FROM payments WHERE billing_id = b.id) AS amount_paid,
+    (b.total_amount - IFNULL((SELECT SUM(amount) FROM payments WHERE billing_id = b.id), 0)) AS balance_due
+FROM 
+    billing b
+JOIN 
+    reservations r ON b.reservation_id = r.id
+JOIN 
+    guests g ON b.guest_id = g.id
+JOIN 
+    room_types rt ON r.room_type_id = rt.id;
+
+-- Create payments table
+CREATE TABLE IF NOT EXISTS payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    billing_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(50) NOT NULL,
+    transaction_id VARCHAR(100),
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    FOREIGN KEY (billing_id) REFERENCES billing(id)
+);
+
+-- Insert sample data if empty
+INSERT INTO billing (reservation_id, guest_id, room_charge, service_charges, tax_amount, total_amount, payment_status, payment_method)
+SELECT 
+    r.id, 
+    r.guest_id, 
+    r.total_price, 
+    ROUND(r.total_price * 0.1, 2), 
+    ROUND((r.total_price + (r.total_price * 0.1)) * 0.08, 2),
+    ROUND((r.total_price + (r.total_price * 0.1)) * 1.08, 2),
+    CASE WHEN RAND() > 0.5 THEN 'paid' ELSE 'pending' END,
+    CASE WHEN RAND() > 0.5 THEN 'credit_card' ELSE 'cash' END
+FROM 
+    reservations r
+WHERE 
+    NOT EXISTS (SELECT 1 FROM billing LIMIT 1)
+LIMIT 5;

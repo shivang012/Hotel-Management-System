@@ -627,6 +627,184 @@
         </div>
     </div>
 </section>
+<!-- Add this with your other content sections -->
+<section id="billing" class="content">
+    <h2>Billing Management</h2>
+    
+    <div class="action-bar">
+        <button class="btn-primary" id="generate-bill-btn"><i class="fas fa-file-invoice"></i> Generate Bill</button>
+        <div class="search-bar">
+            <input type="text" id="billing-search" placeholder="Search bills...">
+            <button id="search-billing-btn"><i class="fas fa-search"></i></button>
+        </div>
+        <div class="filter-options">
+            <select id="billing-filter">
+                <option value="all">All Bills</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="partially_paid">Partially Paid</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="billing-list">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Bill #</th>
+                    <th>Guest</th>
+                    <th>Reservation</th>
+                    <th>Total Amount</th>
+                    <th>Paid</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="billing-table-body">
+                <!-- Will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Bill Details Modal -->
+    <div id="bill-modal" class="modal">
+        <div class="modal-content" style="width: 80%; max-width: 900px;">
+            <span class="close">&times;</span>
+            <h3 id="bill-modal-title">Bill Details</h3>
+            
+            <div class="bill-header">
+                <div class="bill-info">
+                    <h4>Invoice #<span id="bill-number"></span></h4>
+                    <p>Date: <span id="bill-date"></span></p>
+                    <p>Status: <span id="bill-status" class="status"></span></p>
+                </div>
+                <div class="guest-info">
+                    <h4>Guest Information</h4>
+                    <p>Name: <span id="guest-name"></span></p>
+                    <p>Email: <span id="guest-email"></span></p>
+                    <p>Phone: <span id="guest-phone"></span></p>
+                </div>
+            </div>
+            
+            <div class="bill-details">
+                <div class="reservation-info">
+                    <h5>Reservation Details</h5>
+                    <p>Room Type: <span id="room-type"></span></p>
+                    <p>Check-in: <span id="check-in-date"></span></p>
+                    <p>Check-out: <span id="check-out-date"></span></p>
+                </div>
+                
+                <table class="charges-table">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Room Charges</td>
+                            <td id="room-charge"></td>
+                        </tr>
+                        <tr>
+                            <td>Service Charges</td>
+                            <td id="service-charge"></td>
+                        </tr>
+                        <tr>
+                            <td>Tax</td>
+                            <td id="tax-amount"></td>
+                        </tr>
+                        <tr class="total-row">
+                            <td><strong>Total Amount</strong></td>
+                            <td id="total-amount"></td>
+                        </tr>
+                        <tr class="paid-row">
+                            <td><strong>Amount Paid</strong></td>
+                            <td id="amount-paid"></td>
+                        </tr>
+                        <tr class="balance-row">
+                            <td><strong>Balance Due</strong></td>
+                            <td id="balance-due"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="payment-section">
+                <h4>Payment History</h4>
+                <table class="payment-history">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Transaction ID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payment-history-body">
+                        <!-- Will be populated by JavaScript -->
+                    </tbody>
+                </table>
+                
+                <div class="add-payment-form">
+                    <h4>Record Payment</h4>
+                    <form id="payment-form">
+                        <input type="hidden" id="billing-id">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="payment-amount">Amount*</label>
+                                <input type="number" id="payment-amount" min="0.01" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="payment-method">Method*</label>
+                                <select id="payment-method" required>
+                                    <option value="">Select Method</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="credit_card">Credit Card</option>
+                                    <option value="debit_card">Debit Card</option>
+                                    <option value="bank_transfer">Bank Transfer</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="transaction-id">Transaction ID</label>
+                                <input type="text" id="transaction-id">
+                            </div>
+                            <div class="form-group">
+                                <label for="payment-notes">Notes</label>
+                                <input type="text" id="payment-notes">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Record Payment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Generate Bill Modal -->
+    <div id="generate-bill-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Generate New Bill</h3>
+            
+            <form id="generate-bill-form">
+                <div class="form-group">
+                    <label for="reservation-id">Reservation ID*</label>
+                    <input type="number" id="reservation-id" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancel-generate-bill">Cancel</button>
+                    <button type="submit" class="btn-primary">Generate Bill</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
 
             <!-- Add other sections here (Rooms, Guests, Services, etc.) following similar pattern -->
         </main>

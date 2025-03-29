@@ -9,6 +9,7 @@ import re
 import hashlib
 import secrets
 import requests
+from decimal import Decimal
 
 app = Flask(__name__)
 CORS(app)
@@ -1805,6 +1806,278 @@ def create_service():
         return jsonify({'error': 'Failed to create service'}), 500
     finally:
         cur.close()
+
+# Billing API Endpoints
+@app.route('/api/billing', methods=['GET'])
+def get_billing():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        cur = mysql.connection.cursor()
+        
+        # Get optional filters
+        status = request.args.get('status', '')
+        guest_id = request.args.get('guest_id', '')
+        reservation_id = request.args.get('reservation_id', '')
+
+        query = """
+            SELECT b.*, 
+                   g.name as guest_name,
+                   r.check_in_date,
+                   r.check_out_date,
+                   (SELECT SUM(amount) FROM payments WHERE billing_id = b.id) as amount_paid,
+                   (b.total_amount - IFNULL((SELECT SUM(amount) FROM payments WHERE billing_id = b.id), 0)) as balance_due
+            FROM billing b
+            JOIN guests g ON b.guest_id = g.id
+            JOIN reservations r ON b.reservation_id = r.id
+            WHERE 1=1
+        """
+        params = []
+
+        if status:
+            query += " AND b.payment_status = %s"
+            params.append(status)
+        if guest_id:
+            query += " AND b.guest_id = %s"
+            params.append(guest_id)
+        if reservation_id:
+            query += " AND b.reservation_id = %s"
+            params.append(reservation_id)
+
+        query += " ORDER BY b.created_at DESC"
+        
+        cur.execute(query, tuple(params))
+        billing_records = cur.fetchall()
+
+        # Convert Decimal to float for JSON serialization
+        for record in billing_records:
+            for key, value in record.items():
+                if isinstance(value, Decimal):
+                    record[key] = float(value)
+
+        return jsonify(billing_records)
+
+    except Exception as e:
+        app.logger.error(f"Error fetching billing records: {str(e)}")
+        return jsonify({'error': 'Database error occurred'}), 500
+    finally:
+        if 'cur' in locals():
+            cur.close()
+
+@app.route('/api/billing/<int:id>', methods=['GET'])
+def get_bill(id):
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        cur = mysql.connection.cursor()
+        
+        # Get bill details
+        cur.execute("""
+            SELECT b.*, 
+                   g.name as guest_name, 
+                   g.email as guest_email,
+                   g.phone as guest_phone,
+                   r.check_in_date,
+                   r.check_out_date,
+                   rt.name as room_type,
+                   (SELECT SUM(amount) FROM payments WHERE billing_id = b.id) as amount_paid,
+                   (b.total_amount - IFNULL((SELECT SUM(amount) FROM payments WHERE billing_id = b.id), 0)) as balance_due
+            FROM billing b
+            JOIN guests g ON b.guest_id = g.id
+            JOIN reservations r ON b.reservation_id = r.id
+            JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE b.id = %s
+        """, (id,))
+        
+        bill = cur.fetchone()
+        if not bill:
+            return jsonify({'error': 'Bill not found'}), 404
+
+        # Get associated payments
+        cur.execute("""
+            SELECT * FROM payments 
+            WHERE billing_id = %s
+            ORDER BY payment_date DESC
+        """, (id,))
+        payments = cur.fetchall()
+
+        # Convert Decimal to float
+        bill = dict(bill)
+        for key, value in bill.items():
+            if isinstance(value, Decimal):
+                bill[key] = float(value)
+        
+        for payment in payments:
+            payment['amount'] = float(payment['amount'])
+
+        return jsonify({
+            'bill': bill,
+            'payments': payments
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error fetching bill: {str(e)}")
+        return jsonify({'error': 'Database error occurred'}), 500
+    finally:
+        if 'cur' in locals():
+            cur.close()
+
+@app.route('/api/billing/<int:id>/payments', methods=['POST'])
+def add_payment(id):
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    required_fields = ['amount', 'payment_method']
+    for field in required_fields:
+        if field not in data or not str(data[field]).strip():
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    try:
+        amount = float(data['amount'])
+        if amount <= 0:
+            return jsonify({'error': 'Amount must be positive'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid amount format'}), 400
+
+    try:
+        cur = mysql.connection.cursor()
+        
+        # Verify bill exists
+        cur.execute("SELECT id, total_amount FROM billing WHERE id = %s", (id,))
+        bill = cur.fetchone()
+        if not bill:
+            return jsonify({'error': 'Bill not found'}), 404
+
+        # Calculate current balance
+        cur.execute("SELECT IFNULL(SUM(amount), 0) FROM payments WHERE billing_id = %s", (id,))
+        paid_amount = cur.fetchone()[0]
+        balance_due = float(bill['total_amount']) - paid_amount
+
+        if amount > balance_due:
+            return jsonify({'error': 'Payment amount exceeds balance due'}), 400
+
+        # Add payment
+        cur.execute("""
+            INSERT INTO payments (billing_id, amount, payment_method, transaction_id, notes)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            id,
+            amount,
+            data['payment_method'],
+            data.get('transaction_id', ''),
+            data.get('notes', '')
+        ))
+
+        # Update billing status if fully paid
+        if (paid_amount + amount) >= float(bill['total_amount']):
+            cur.execute("""
+                UPDATE billing 
+                SET payment_status = 'paid', 
+                    payment_date = CURRENT_TIMESTAMP,
+                    payment_method = %s
+                WHERE id = %s
+            """, (data['payment_method'], id))
+        else:
+            cur.execute("""
+                UPDATE billing 
+                SET payment_status = 'partially_paid',
+                    payment_method = %s
+                WHERE id = %s
+            """, (data['payment_method'], id))
+
+        mysql.connection.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Payment recorded successfully'
+        })
+
+    except Exception as e:
+        mysql.connection.rollback()
+        app.logger.error(f"Error recording payment: {str(e)}")
+        return jsonify({'error': 'Failed to record payment'}), 500
+    finally:
+        if 'cur' in locals():
+            cur.close()
+
+@app.route('/api/billing/generate', methods=['POST'])
+def generate_bill():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    if not data or 'reservation_id' not in data:
+        return jsonify({'error': 'Reservation ID required'}), 400
+
+    try:
+        cur = mysql.connection.cursor()
+        
+        # Check if bill already exists
+        cur.execute("SELECT id FROM billing WHERE reservation_id = %s", (data['reservation_id'],))
+        if cur.fetchone():
+            return jsonify({'error': 'Bill already exists for this reservation'}), 400
+
+        # Get reservation details
+        cur.execute("""
+            SELECT r.*, g.id as guest_id, rt.base_price
+            FROM reservations r
+            JOIN guests g ON r.guest_id = g.id
+            JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE r.id = %s
+        """, (data['reservation_id'],))
+        
+        reservation = cur.fetchone()
+        if not reservation:
+            return jsonify({'error': 'Reservation not found'}), 404
+
+        # Calculate charges
+        nights = (reservation['check_out_date'] - reservation['check_in_date']).days
+        room_charge = float(reservation['base_price']) * nights
+        service_charges = room_charge * 0.1  # 10% service fee
+        tax_amount = (room_charge + service_charges) * 0.08  # 8% tax
+        total_amount = room_charge + service_charges + tax_amount
+
+        # Create bill
+        cur.execute("""
+            INSERT INTO billing (
+                reservation_id, 
+                guest_id, 
+                room_charge, 
+                service_charges, 
+                tax_amount, 
+                total_amount
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            data['reservation_id'],
+            reservation['guest_id'],
+            room_charge,
+            service_charges,
+            tax_amount,
+            total_amount
+        ))
+
+        mysql.connection.commit()
+        bill_id = cur.lastrowid
+
+        return jsonify({
+            'success': True,
+            'bill_id': bill_id,
+            'message': 'Bill generated successfully'
+        })
+
+    except Exception as e:
+        mysql.connection.rollback()
+        app.logger.error(f"Error generating bill: {str(e)}")
+        return jsonify({'error': 'Failed to generate bill'}), 500
+    finally:
+        if 'cur' in locals():
+            cur.close()
 
 # Main entry point
 if __name__ == '__main__':

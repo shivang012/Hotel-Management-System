@@ -932,6 +932,281 @@ function setupServiceManagement() {
     }
 }
 
+// Billing Management Functions
+function setupBillingManagement() {
+    // DOM Elements
+    const billingTableBody = document.getElementById('billing-table-body');
+    const billModal = document.getElementById('bill-modal');
+    const generateBillModal = document.getElementById('generate-bill-modal');
+    const generateBillBtn = document.getElementById('generate-bill-btn');
+    const billingSearch = document.getElementById('billing-search');
+    const searchBillingBtn = document.getElementById('search-billing-btn');
+    const billingFilter = document.getElementById('billing-filter');
+    const paymentForm = document.getElementById('payment-form');
+    const generateBillForm = document.getElementById('generate-bill-form');
+    const cancelGenerateBillBtn = document.getElementById('cancel-generate-bill');
+
+    // Only proceed if billing management elements exist
+    if (!billingTableBody) return;
+
+    // Event Listeners
+    generateBillBtn.addEventListener('click', openGenerateBillModal);
+    cancelGenerateBillBtn.addEventListener('click', closeGenerateBillModal);
+    searchBillingBtn.addEventListener('click', loadBilling);
+    billingSearch.addEventListener('keypress', (e) => e.key === 'Enter' && loadBilling());
+    billingFilter.addEventListener('change', loadBilling);
+    paymentForm.addEventListener('submit', handlePaymentSubmit);
+    generateBillForm.addEventListener('submit', handleGenerateBillSubmit);
+    window.addEventListener('click', (e) => {
+        if (e.target === billModal) closeBillModal();
+        if (e.target === generateBillModal) closeGenerateBillModal();
+    });
+    document.querySelectorAll('.modal .close').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (billModal.style.display === 'block') closeBillModal();
+            if (generateBillModal.style.display === 'block') closeGenerateBillModal();
+        });
+    });
+
+    // Load initial billing records
+    loadBilling();
+
+    function loadBilling() {
+        const searchTerm = billingSearch.value.trim();
+        const filter = billingFilter.value;
+        
+        let url = '/api/billing';
+        const params = new URLSearchParams();
+        
+        if (searchTerm) params.append('search', searchTerm);
+        if (filter !== 'all') params.append('status', filter);
+        
+        if (params.toString()) url += `?${params.toString()}`;
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(bills => {
+                renderBillingTable(bills);
+            })
+            .catch(error => {
+                console.error('Error loading billing records:', error);
+                showNotification('Failed to load billing records. Please try again.', 'error');
+            });
+    }
+
+    function renderBillingTable(bills) {
+        billingTableBody.innerHTML = '';
+        
+        if (!bills || bills.length === 0) {
+            billingTableBody.innerHTML = '<tr><td colspan="8">No billing records found</td></tr>';
+            return;
+        }
+
+        bills.forEach(bill => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${bill.id}</td>
+                <td>${bill.guest_name}</td>
+                <td>RES-${bill.reservation_id.toString().padStart(4, '0')}</td>
+                <td>${formatCurrency(bill.total_amount)}</td>
+                <td>${formatCurrency(bill.amount_paid || 0)}</td>
+                <td>${formatCurrency(bill.balance_due || bill.total_amount)}</td>
+                <td><span class="status ${bill.payment_status}">${formatStatus(bill.payment_status)}</span></td>
+                <td>
+                    <button class="btn-action view-bill" data-id="${bill.id}">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+            billingTableBody.appendChild(row);
+        });
+
+        // Add event listeners to action buttons
+        document.querySelectorAll('.view-bill').forEach(btn => {
+            btn.addEventListener('click', () => viewBillDetails(btn.dataset.id));
+        });
+    }
+
+    function formatCurrency(amount) {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(amount);
+    }
+
+    function formatStatus(status) {
+        const statusMap = {
+            'pending': 'Pending',
+            'paid': 'Paid',
+            'partially_paid': 'Partially Paid',
+            'cancelled': 'Cancelled'
+        };
+        return statusMap[status] || status;
+    }
+
+    function viewBillDetails(billId) {
+        fetch(`/api/billing/${billId}`)
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to fetch bill details');
+                return response.json();
+            })
+            .then(data => {
+                const bill = data.bill;
+                const payments = data.payments;
+
+                // Populate bill header
+                document.getElementById('bill-number').textContent = bill.id;
+                document.getElementById('bill-date').textContent = new Date(bill.created_at).toLocaleDateString();
+                document.getElementById('bill-status').textContent = formatStatus(bill.payment_status);
+                document.getElementById('bill-status').className = `status ${bill.payment_status}`;
+
+                // Populate guest info
+                document.getElementById('guest-name').textContent = bill.guest_name;
+                document.getElementById('guest-email').textContent = bill.guest_email;
+                document.getElementById('guest-phone').textContent = bill.guest_phone || 'N/A';
+
+                // Populate reservation info
+                document.getElementById('room-type').textContent = bill.room_type;
+                document.getElementById('check-in-date').textContent = new Date(bill.check_in_date).toLocaleDateString();
+                document.getElementById('check-out-date').textContent = new Date(bill.check_out_date).toLocaleDateString();
+
+                // Populate charges
+                document.getElementById('room-charge').textContent = formatCurrency(bill.room_charge);
+                document.getElementById('service-charge').textContent = formatCurrency(bill.service_charges);
+                document.getElementById('tax-amount').textContent = formatCurrency(bill.tax_amount);
+                document.getElementById('total-amount').textContent = formatCurrency(bill.total_amount);
+                document.getElementById('amount-paid').textContent = formatCurrency(bill.amount_paid || 0);
+                document.getElementById('balance-due').textContent = formatCurrency(bill.balance_due || bill.total_amount);
+
+                // Populate payment history
+                const paymentHistoryBody = document.getElementById('payment-history-body');
+                paymentHistoryBody.innerHTML = '';
+                
+                if (payments && payments.length > 0) {
+                    payments.forEach(payment => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${new Date(payment.payment_date).toLocaleString()}</td>
+                            <td>${formatCurrency(payment.amount)}</td>
+                            <td>${payment.payment_method.replace('_', ' ').toUpperCase()}</td>
+                            <td>${payment.transaction_id || 'N/A'}</td>
+                        `;
+                        paymentHistoryBody.appendChild(row);
+                    });
+                } else {
+                    paymentHistoryBody.innerHTML = '<tr><td colspan="4">No payments recorded</td></tr>';
+                }
+
+                // Set billing ID for payment form
+                document.getElementById('billing-id').value = bill.id;
+
+                // Open modal
+                document.getElementById('bill-modal-title').textContent = `Bill #${bill.id}`;
+                billModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error fetching bill details:', error);
+                showNotification('Failed to load bill details', 'error');
+            });
+    }
+
+    function handlePaymentSubmit(e) {
+        e.preventDefault();
+        
+        const billingId = document.getElementById('billing-id').value;
+        const amount = parseFloat(document.getElementById('payment-amount').value);
+        const method = document.getElementById('payment-method').value;
+        const transactionId = document.getElementById('transaction-id').value;
+        const notes = document.getElementById('payment-notes').value;
+
+        if (isNaN(amount) || amount <= 0) {
+            showNotification('Please enter a valid positive amount', 'error');
+            return;
+        }
+
+        if (!method) {
+            showNotification('Please select a payment method', 'error');
+            return;
+        }
+
+        fetch(`/api/billing/${billingId}/payments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                amount: amount,
+                payment_method: method,
+                transaction_id: transactionId,
+                notes: notes
+            })
+        })
+        .then(response => {
+            if (!response.ok) return response.json().then(err => { throw new Error(err.error); });
+            return response.json();
+        })
+        .then(data => {
+            showNotification(data.message || 'Payment recorded successfully');
+            viewBillDetails(billingId); // Refresh the bill details
+            loadBilling(); // Refresh the billing list
+            paymentForm.reset();
+        })
+        .catch(error => {
+            console.error('Error recording payment:', error);
+            showNotification(error.message || 'Failed to record payment', 'error');
+        });
+    }
+
+    function openGenerateBillModal() {
+        generateBillForm.reset();
+        generateBillModal.style.display = 'block';
+    }
+
+    function closeGenerateBillModal() {
+        generateBillModal.style.display = 'none';
+    }
+
+    function closeBillModal() {
+        billModal.style.display = 'none';
+    }
+
+    function handleGenerateBillSubmit(e) {
+        e.preventDefault();
+        
+        const reservationId = document.getElementById('reservation-id').value;
+        
+        if (!reservationId) {
+            showNotification('Please enter a reservation ID', 'error');
+            return;
+        }
+
+        fetch('/api/billing/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                reservation_id: reservationId
+            })
+        })
+        .then(response => {
+            if (!response.ok) return response.json().then(err => { throw new Error(err.error); });
+            return response.json();
+        })
+        .then(data => {
+            showNotification(data.message || 'Bill generated successfully');
+            closeGenerateBillModal();
+            loadBilling();
+        })
+        .catch(error => {
+            console.error('Error generating bill:', error);
+            showNotification(error.message || 'Failed to generate bill', 'error');
+        });
+    }
+}
 
 // Room Management Functions
 function setupRoomManagement() {
@@ -1259,6 +1534,7 @@ function init() {
     setupGuestManagement();
     setupRoomManagement(); // Add this line
     setupServiceManagement(); // Add this line
+    setupBillingManagement(); // Add this line
 }
     // Initialize the app
     init();

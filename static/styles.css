@@ -749,3 +749,119 @@ body {
     background-color: rgba(244, 67, 54, 0.1);
     color: var(--danger-color);
 }
+
+/* Billing Management Styles */
+.billing-list {
+    margin-top: 20px;
+    overflow-x: auto;
+}
+
+.bill-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.bill-info, .guest-info {
+    flex: 1;
+}
+
+.bill-details {
+    margin: 20px 0;
+}
+
+.charges-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+.charges-table th, 
+.charges-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.charges-table th {
+    background-color: #f8f9fa;
+}
+
+.total-row td {
+    font-weight: bold;
+    border-top: 2px solid var(--border-color);
+}
+
+.paid-row td {
+    color: var(--success-color);
+}
+
+.balance-row td {
+    color: var(--danger-color);
+}
+
+.payment-section {
+    margin-top: 30px;
+}
+
+.payment-history {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+.payment-history th, 
+.payment-history td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.payment-history th {
+    background-color: #f8f9fa;
+}
+
+.add-payment-form {
+    margin-top: 25px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+/* Status badges */
+.status.pending {
+    background-color: rgba(255, 152, 0, 0.1);
+    color: var(--warning-color);
+}
+
+.status.paid {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: var(--success-color);
+}
+
+.status.partially_paid {
+    background-color: rgba(33, 150, 243, 0.1);
+    color: var(--info-color);
+}
+
+.status.cancelled {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: var(--danger-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .bill-header {
+        flex-direction: column;
+    }
+    
+    .bill-info, .guest-info {
+        margin-bottom: 15px;
+    }
+    
+    .charges-table, .payment-history {
+        font-size: 14px;
+    }
+}
