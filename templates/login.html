@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hotel Management System - Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="logo">
+                <h1>Horizon</h1>
+                <p>Hotel Management</p>
+            </div>
+        </div>
+        
+        <form method="POST" action="{{ url_for('login') }}" class="login-form">
+            <h2>Sign In</h2>
+            
+            <div class="form-group">
+                <label for="username">
+                    <i class="fas fa-user"></i>
+                </label>
+                <input type="text" id="username" name="username" placeholder="Username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">
+                    <i class="fas fa-lock"></i>
+                </label>
+                <input type="password" id="password" name="password" placeholder="Password" required>
+            </div>
+            
+            <button type="submit" class="btn-login">Login</button>
+            
+            {% if error %}
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i> {{ error }}
+            </div>
+            {% endif %}
+        </form>
+        
+        <div class="login-footer">
+            <p>©️ 2023 Horizon Hotel Management. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>Horizon</h1>
+                <p>Hotel Management</p>
+            </div>
+            
+            <nav class="nav">
+                <ul>
+                    <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="#reservations"><i class="fas fa-calendar-check"></i> Reservations</a></li>
+                    <li><a href="#rooms"><i class="fas fa-door-open"></i> Rooms</a></li>
+                    <li><a href="#guests"><i class="fas fa-users"></i> Guests</a></li>
+                    <li><a href="#services"><i class="fas fa-concierge-bell"></i> Services</a></li>
+                    <li><a href="#billing"><i class="fas fa-file-invoice-dollar"></i> Billing</a></li>
+                    <li><a href="#reports"><i class="fas fa-chart-pie"></i> Reports</a></li>
+                    <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
+                </ul>
+            </nav>
+            
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="header">
+                <div class="search-bar">
+                    <input type="text" placeholder="Search...">
+                    <button><i class="fas fa-search"></i></button>
+                </div>
+                
+                <div class="user-profile">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="profile">
+                        <img src="{{ url_for('static', filename='profile-placeholder.jpg') }}" alt="Profile">
+                        <span>{{ session.username | default('Admin') }}</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content active">
+                <h2>Dashboard</h2>
+                
+                <div id="stats-error" class="error-message" style="display: none;"></div>
+                
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-value" id="occupancy-rate">{{ stats.occupancy_rate | default(0) }}%</div>
+                        <div class="stat-label">Occupancy</div>
+                        <div class="stat-icon"><i class="fas fa-bed"></i></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value" id="todays-checkins">{{ stats.todays_checkins | default(0) }}</div>
+                        <div class="stat-label">Check-ins Today</div>
+                        <div class="stat-icon"><i class="fas fa-sign-in-alt"></i></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value" id="todays-checkouts">{{ stats.todays_checkouts | default(0) }}</div>
+                        <div class="stat-label">Check-outs Today</div>
+                        <div class="stat-icon"><i class="fas fa-sign-out-alt"></i></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value" id="todays-revenue">${{ stats.revenue.today | default(0) }}</div>
+                        <div class="stat-label">Today's Revenue</div>
+                        <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-content">
+                    <div class="recent-bookings">
+                        <h3>Recent Bookings</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Guest Name</th>
+                                    <th>Room</th>
+                                    <th>Check-in</th>
+                                    <th>Check-out</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-bookings-body">
+                                {% for res in stats.recent_reservations | default([]) %}
+                                <tr>
+                                    <td>{{ res.guest_name }}</td>
+                                    <td>{{ res.room_type_name }}</td>
+                                    <td>{{ res.check_in_date }}</td>
+                                    <td>{{ res.check_out_date }}</td>
+                                    <td><span class="status {{ res.status | lower | replace(' ', '-') }}">{{ res.status }}</span></td>
+                                    <td>
+                                        <button class="btn-action view-reservation" data-id="{{ res.id }}">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn-action edit-reservation" data-id="{{ res.id }}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6">No recent bookings found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <a href="#reservations" class="view-all">View All Bookings</a>
+                    </div>
+                    
+                    <div class="availability-chart">
+                        <h3>Room Availability</h3>
+                        <div class="chart-container">
+                            <canvas id="availability-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Reservation Section (initially hidden) -->
+            <section id="reservations" class="content">
+                <h2>Reservations</h2>
+                
+                <div class="action-bar">
+                    <button class="btn-primary" id="new-reservation-btn"><i class="fas fa-plus"></i> New Reservation</button>
+                    <div class="filter-options">
+                        <select id="reservation-filter">
+                            <option value="all">All Reservations</option>
+                            <option value="upcoming">Upcoming</option>
+                            <option value="in-house">In House</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="reservation-list">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reservation ID</th>
+                                <th>Guest Name</th>
+                                <th>Room Type</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reservation-table-body">
+                            <!-- This will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Reservation Form Modal (hidden by default) -->
+                <div id="reservation-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close">&times;</span>
+                        <h3>New Reservation</h3>
+                        
+                        <form id="reservation-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="guest-name">Guest Name</label>
+                                    <input type="text" id="guest-name" name="guest-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="guest-email">Email</label>
+                                    <input type="email" id="guest-email" name="guest-email" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="guest-phone">Phone</label>
+                                    <input type="tel" id="guest-phone" name="guest-phone">
+                                </div>
+                                <div class="form-group">
+                                    <label for="num-guests">Number of Guests</label>
+                                    <input type="number" id="num-guests" name="num-guests" min="1" value="1">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="check-in-date">Check-in Date</label>
+                                    <input type="date" id="check-in-date" name="check-in-date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="check-out-date">Check-out Date</label>
+                                    <input type="date" id="check-out-date" name="check-out-date" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="room-type">Room Type</label>
+                                    <select id="room-type" name="room-type" required>
+                                        <option value="">Select Room Type</option>
+                                        <option value="standard">Standard</option>
+                                        <option value="deluxe">Deluxe</option>
+                                        <option value="suite">Suite</option>
+                                        <option value="executive">Executive Suite</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="room-preference">Room Preference</label>
+                                    <select id="room-preference" name="room-preference">
+                                        <option value="any">Any Available</option>
+                                        <option value="high-floor">High Floor</option>
+                                        <option value="low-floor">Low Floor</option>
+                                        <option value="quiet">Quiet Area</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="special-requests">Special Requests</label>
+                                <textarea id="special-requests" name="special-requests" rows="3"></textarea>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" id="cancel-reservation">Cancel</button>
+                                <button type="submit" class="btn-primary">Create Reservation</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Add this section with the other content sections -->
+<section id="guests" class="content">
+    <h2>Guest Management</h2>
+    
+    <div class="action-bar">
+        <button class="btn-primary" id="new-guest-btn"><i class="fas fa-plus"></i> New Guest</button>
+        <div class="filter-options">
+            <select id="guest-filter">
+                <option value="all">All Guests</option>
+                <option value="frequent">Frequent Guests</option>
+                <option value="vip">VIP Guests</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="guest-list">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Reservations</th>
+                    <th>Last Stay</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="guest-table-body">
+                <!-- Will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Guest Form Modal (hidden by default) -->
+    <div id="guest-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="guest-modal-title">New Guest</h3>
+            
+            <form id="guest-form">
+                <input type="hidden" id="guest-id">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="guest-name">Full Name*</label>
+                        <input type="text" id="guest-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-email">Email*</label>
+                        <input type="email" id="guest-email" name="email" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="guest-phone">Phone</label>
+                        <input type="tel" id="guest-phone" name="phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-address">Address</label>
+                        <input type="text" id="guest-address" name="address">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="guest-notes">Notes</label>
+                    <textarea id="guest-notes" name="notes" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="guest-vip" name="vip"> VIP Guest
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancel-guest">Cancel</button>
+                    <button type="submit" class="btn-primary" id="save-guest">Save Guest</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Guest Details Modal (hidden by default) -->
+    <div id="guest-details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Guest Details</h3>
+            
+            <div class="guest-details-header">
+                <div class="guest-avatar">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="guest-details-vip" class="vip-badge">VIP</span>
+                </div>
+                <div class="guest-info">
+                    <h4 id="guest-details-name"></h4>
+                    <p id="guest-details-email"></p>
+                    <p id="guest-details-phone"></p>
+                </div>
+            </div>
+            
+            <div class="guest-details-content">
+                <div class="guest-details-section">
+                    <h5>Contact Information</h5>
+                    <p><strong>Address:</strong> <span id="guest-details-address"></span></p>
+                    <p><strong>Member Since:</strong> <span id="guest-details-created"></span></p>
+                </div>
+                
+                <div class="guest-details-section">
+                    <h5>Reservation History</h5>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reservation ID</th>
+                                <th>Room Type</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="guest-reservations-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="guest-details-section">
+                    <h5>Notes</h5>
+                    <p id="guest-details-notes"></p>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" id="close-guest-details">Close</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Add this section with the other content sections -->
+<section id="rooms" class="content">
+    <h2>Room Management</h2>
+    
+    <div class="action-bar">
+        <button class="btn-primary" id="new-room-btn"><i class="fas fa-plus"></i> New Room</button>
+        <div class="filter-options">
+            <select id="room-filter">
+                <option value="all">All Rooms</option>
+                <option value="available">Available</option>
+                <option value="occupied">Occupied</option>
+                <option value="maintenance">Maintenance</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="room-list">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Room Number</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Rate</th>
+                    <th>Last Maintenance</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="room-table-body">
+                <!-- Will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Room Form Modal (hidden by default) -->
+    <div id="room-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="room-modal-title">New Room</h3>
+            
+            <form id="room-form">
+                <input type="hidden" id="room-id">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="room-number">Room Number*</label>
+                        <input type="text" id="room-number" name="room_number" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="room-type">Room Type*</label>
+                        <select id="room-type" name="room_type_id" required>
+                            <!-- Will be populated by JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="room-status">Status*</label>
+                        <select id="room-status" name="status" required>
+                            <option value="available">Available</option>
+                            <option value="occupied">Occupied</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="room-notes">Notes</label>
+                        <input type="text" id="room-notes" name="notes">
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancel-room">Cancel</button>
+                    <button type="submit" class="btn-primary" id="save-room">Save Room</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Room Details Modal (hidden by default) -->
+    <div id="room-details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Room Details</h3>
+            
+            <div class="room-details-header">
+                <div class="room-icon">
+                    <i class="fas fa-door-open"></i>
+                    <span id="room-status-badge" class="status"></span>
+                </div>
+                <div class="room-info">
+                    <h4 id="room-details-number"></h4>
+                    <p id="room-details-type"></p>
+                    <p id="room-details-rate"></p>
+                </div>
+            </div>
+            
+            <div class="room-details-content">
+                <div class="room-details-section">
+                    <h5>Current Status</h5>
+                    <p><strong>Status:</strong> <span id="room-details-status"></span></p>
+                    <p><strong>Last Updated:</strong> <span id="room-details-updated"></span></p>
+                    <p><strong>Notes:</strong> <span id="room-details-notes"></span></p>
+                </div>
+                
+                <div class="room-details-section">
+                    <h5>Current Reservation</h5>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Guest Name</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="room-reservations-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="room-details-section">
+                    <h5>Maintenance History</h5>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Staff</th>
+                            </tr>
+                        </thead>
+                        <tbody id="room-maintenance-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" id="close-room-details">Close</button>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- Add this with your other content sections -->
+<section id="services" class="content">
+    <h2>Services Management</h2>
+    
+    <div class="action-bar">
+        <button class="btn-primary" id="new-service-btn"><i class="fas fa-plus"></i> New Service</button>
+        <div class="search-bar">
+            <input type="text" id="service-search" placeholder="Search services...">
+            <button id="search-services-btn"><i class="fas fa-search"></i></button>
+        </div>
+        <div class="filter-options">
+            <select id="service-filter">
+                <option value="all">All Services</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="room-service">Room Service</option>
+                <option value="cleaning">Cleaning</option>
+                <option value="transport">Transport</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="service-list">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="service-table-body">
+                <!-- Will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Service Form Modal -->
+    <div id="service-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="service-modal-title">New Service</h3>
+            
+            <form id="service-form">
+                <input type="hidden" id="service-id">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="service-name">Service Name*</label>
+                        <input type="text" id="service-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="service-type">Service Type*</label>
+                        <select id="service-type" name="type" required>
+                            <option value="">Select Type</option>
+                            <option value="room-service">Room Service</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="transport">Transport</option>
+                            <option value="spa">Spa</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="service-price">Price*</label>
+                        <input type="number" id="service-price" name="price" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="service-status">Status*</label>
+                        <select id="service-status" name="status" required>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="service-description">Description</label>
+                    <textarea id="service-description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancel-service">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+            <!-- Add other sections here (Rooms, Guests, Services, etc.) following similar pattern -->
+        </main>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='index.js') }}"></script>
+    <script>
+        // Global variables
+        let roomAvailabilityChart;
+        let statsRefreshInterval;
+
+        // Initialize dashboard when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load initial data
+            fetchDashboardStats();
+            
+            // Set up auto-refresh every 30 seconds
+            statsRefreshInterval = setInterval(fetchDashboardStats, 30000);
+            
+            // Initialize room availability chart
+            initializeRoomAvailabilityChart();
+        });
+
+        // Fetch dashboard stats from API
+        function fetchDashboardStats() {
+    fetch('/api/dashboard/stats')
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.error || 'Failed to fetch dashboard stats');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Hide any previous error
+            document.getElementById('stats-error').style.display = 'none';
+            
+            updateDashboardStats(data);
+            updateRoomAvailabilityChart(data);
+        })
+        .catch(error => {
+            console.error('Error fetching dashboard stats:', error);
+            const errorElement = document.getElementById('stats-error');
+            errorElement.textContent = 'Error loading dashboard data: ' + error.message;
+            errorElement.style.display = 'block';
+        });
+}
+
+        // Update the dashboard stats cards
+        function updateDashboardStats(stats) {
+            // Update stat cards
+            document.getElementById('occupancy-rate').textContent = stats.occupancy_rate + '%';
+            document.getElementById('todays-checkins').textContent = stats.todays_checkins;
+            document.getElementById('todays-checkouts').textContent = stats.todays_checkouts;
+            document.getElementById('todays-revenue').textContent = '$' + stats.revenue.today.toFixed(2);
+
+            // Update recent bookings table
+            const bookingsBody = document.getElementById('recent-bookings-body');
+            if (bookingsBody) {
+                bookingsBody.innerHTML = '';
+                
+                if (stats.recent_reservations && stats.recent_reservations.length > 0) {
+                    stats.recent_reservations.forEach(res => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${res.guest_name}</td>
+                            <td>${res.room_type_name}</td>
+                            <td>${res.check_in_date}</td>
+                            <td>${res.check_out_date}</td>
+                            <td><span class="status ${res.status.toLowerCase().replace(' ', '-')}">${res.status}</span></td>
+                            <td>
+                                <button class="btn-action view-reservation" data-id="${res.id}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn-action edit-reservation" data-id="${res.id}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        `;
+                        bookingsBody.appendChild(row);
+                    });
+                } else {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="6">No recent bookings found</td>';
+                    bookingsBody.appendChild(row);
+                }
+            }
+        }
+
+        // Initialize the room availability chart
+        function initializeRoomAvailabilityChart() {
+            const ctx = document.getElementById('availability-chart').getContext('2d');
+            roomAvailabilityChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Occupied', 'Available', 'Maintenance'],
+                    datasets: [{
+                        data: [0, 0, 0], // Initial empty data
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(255, 159, 64, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update the room availability chart with new data
+        function updateRoomAvailabilityChart(stats) {
+            if (roomAvailabilityChart) {
+                roomAvailabilityChart.data.datasets[0].data = [
+                    stats.occupied_rooms,
+                    stats.available_rooms,
+                    stats.maintenance_rooms
+                ];
+                roomAvailabilityChart.update();
+            }
+        }
+
+        // Clean up when leaving the page
+        window.addEventListener('beforeunload', function() {
+            clearInterval(statsRefreshInterval);
+        });
+    </script>
+</body>
+</html>
