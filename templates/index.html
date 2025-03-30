@@ -806,7 +806,177 @@
     </div>
 </section>
 
-            <!-- Add other sections here (Rooms, Guests, Services, etc.) following similar pattern -->
+<!-- Add this report section with the other content sections -->
+<section id="reports" class="content">
+    <h2>Reports</h2>
+    
+    <div class="report-filters">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="report-type">Report Type</label>
+                <select id="report-type" class="form-control">
+                    <option value="occupancy">Occupancy Report</option>
+                    <option value="revenue">Revenue Report</option>
+                    <option value="guest">Guest Statistics</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="date-range">Date Range</label>
+                <select id="date-range" class="form-control">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="form-group" id="custom-date-range" style="display: none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="start-date">Start Date</label>
+                        <input type="date" id="start-date" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="end-date">End Date</label>
+                        <input type="date" id="end-date" class="form-control">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <button id="generate-report" class="btn-primary">
+                    <i class="fas fa-chart-bar"></i> Generate Report
+                </button>
+                <button id="export-report" class="btn-secondary" disabled>
+                    <i class="fas fa-file-export"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="report-container">
+        <div class="report-loading" style="display: none;">
+            <i class="fas fa-spinner fa-spin"></i> Generating report...
+        </div>
+        
+        <div class="report-results">
+            <div id="occupancy-report" class="report-section">
+                <h3>Occupancy Report</h3>
+                <div class="chart-container">
+                    <canvas id="occupancy-chart"></canvas>
+                </div>
+                <div class="report-table">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Occupied</th>
+                                <th>Available</th>
+                                <th>Occupancy Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="occupancy-table-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="revenue-report" class="report-section" style="display: none;">
+                <h3>Revenue Report</h3>
+                <div class="chart-container">
+                    <canvas id="revenue-chart"></canvas>
+                </div>
+                <div class="report-table">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Reservations</th>
+                                <th>Revenue</th>
+                                <th>Avg. Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="revenue-table-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="guest-report" class="report-section" style="display: none;">
+                <h3>Guest Statistics</h3>
+                <div class="chart-container">
+                    <canvas id="guest-chart"></canvas>
+                </div>
+                <div class="report-table">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody id="guest-table-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Add this settings section with the other content sections -->
+<section id="settings" class="content">
+    <h2>System Settings</h2>
+    
+    <div class="settings-tabs">
+        <div class="tab-nav">
+            <button class="tab-link active" data-tab="general">General</button>
+        </div>
+        
+        <div class="tab-content active" id="general-tab">
+            <form id="general-settings-form">
+                <div class="form-group">
+                    <label for="hotel-name">Hotel Name</label>
+                    <input type="text" id="hotel-name" name="hotel_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="hotel-address">Address</label>
+                    <textarea id="hotel-address" name="hotel_address" rows="3" required></textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="hotel-phone">Phone</label>
+                        <input type="tel" id="hotel-phone" name="hotel_phone" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="hotel-email">Email</label>
+                        <input type="email" id="hotel-email" name="hotel_email" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="currency">Currency</label>
+                    <select id="currency" name="currency" required>
+                        <option value="INR">Rupees (₹)</option>
+                        <option value="USD">US Dollar ($)</option>
+                        <option value="EUR">Euro (€)</option>
+                        <option value="GBP">British Pound (£)</option>
+                    </select>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
         </main>
     </div>
     

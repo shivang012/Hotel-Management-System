@@ -1208,6 +1208,302 @@ function setupBillingManagement() {
     }
 }
 
+// Reports Management Functions
+function setupReports() {
+    const reportTypeSelect = document.getElementById('report-type');
+    const dateRangeSelect = document.getElementById('date-range');
+    const customDateRange = document.getElementById('custom-date-range');
+    const generateReportBtn = document.getElementById('generate-report');
+    const exportReportBtn = document.getElementById('export-report');
+    const reportSections = document.querySelectorAll('.report-section');
+    const reportLoading = document.querySelector('.report-loading');
+    
+    // Charts
+    let occupancyChart, revenueChart, guestChart;
+    
+    // Initialize charts
+    function initCharts() {
+        const occupancyCtx = document.getElementById('occupancy-chart').getContext('2d');
+        const revenueCtx = document.getElementById('revenue-chart').getContext('2d');
+        const guestCtx = document.getElementById('guest-chart').getContext('2d');
+        
+        occupancyChart = new Chart(occupancyCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: chartOptions('Occupancy Rate (%)')
+        });
+        
+        revenueChart = new Chart(revenueCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: chartOptions('Revenue ($)')
+        });
+        
+        guestChart = new Chart(guestCtx, {
+            type: 'pie',
+            data: { labels: [], datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+    
+    function chartOptions(title) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: { display: true, text: title },
+                legend: { position: 'bottom' },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                y: { beginAtZero: true },
+                x: { grid: { display: false } }
+            }
+        };
+    }
+    
+    // Toggle custom date range
+    dateRangeSelect.addEventListener('change', function() {
+        customDateRange.style.display = this.value === 'custom' ? 'block' : 'none';
+    });
+    
+    // Generate report
+    generateReportBtn.addEventListener('click', function() {
+        const reportType = reportTypeSelect.value;
+        const dateRange = dateRangeSelect.value;
+        let startDate, endDate;
+        
+        // Calculate dates based on selection
+        const today = new Date();
+        switch(dateRange) {
+            case 'today':
+                startDate = endDate = formatDate(today);
+                break;
+            case 'week':
+                startDate = formatDate(new Date(today.setDate(today.getDate() - today.getDay())));
+                endDate = formatDate(new Date(today.setDate(today.getDate() + 6)));
+                break;
+            case 'month':
+                startDate = formatDate(new Date(today.getFullYear(), today.getMonth(), 1));
+                endDate = formatDate(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+                break;
+            case 'quarter':
+                const quarter = Math.floor(today.getMonth() / 3);
+                startDate = formatDate(new Date(today.getFullYear(), quarter * 3, 1));
+                endDate = formatDate(new Date(today.getFullYear(), quarter * 3 + 3, 0));
+                break;
+            case 'year':
+                startDate = formatDate(new Date(today.getFullYear(), 0, 1));
+                endDate = formatDate(new Date(today.getFullYear(), 11, 31));
+                break;
+            case 'custom':
+                startDate = document.getElementById('start-date').value;
+                endDate = document.getElementById('end-date').value;
+                if (!startDate || !endDate) {
+                    showNotification('Please select both start and end dates', 'error');
+                    return;
+                }
+                break;
+        }
+        
+        // Show loading
+        reportLoading.style.display = 'block';
+        reportSections.forEach(section => section.style.display = 'none');
+        
+        // Fetch report data
+        fetchReportData(reportType, startDate, endDate);
+    });
+    
+    function fetchReportData(reportType, startDate, endDate) {
+        let endpoint = '';
+        switch(reportType) {
+            case 'occupancy':
+                endpoint = `/api/reports/occupancy?start_date=${startDate}&end_date=${endDate}`;
+                break;
+            case 'revenue':
+                endpoint = `/api/reports/revenue?start_date=${startDate}&end_date=${endDate}`;
+                break;
+            case 'guest':
+                endpoint = `/api/reports/guest?start_date=${startDate}&end_date=${endDate}`;
+                break;
+        }
+        
+        fetch(endpoint)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                displayReport(reportType, data);
+                exportReportBtn.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error fetching report:', error);
+                showNotification('Failed to generate report: ' + error.message, 'error');
+            })
+            .finally(() => {
+                reportLoading.style.display = 'none';
+            });
+    }
+    
+    function displayReport(reportType, data) {
+        // Hide all sections first
+        reportSections.forEach(section => section.style.display = 'none');
+        
+        // Show the selected report section
+        const activeSection = document.getElementById(`${reportType}-report`);
+        activeSection.style.display = 'block';
+        
+        // Update the report content based on type
+        switch(reportType) {
+            case 'occupancy':
+                updateOccupancyReport(data);
+                break;
+            case 'revenue':
+                updateRevenueReport(data);
+                break;
+            case 'guest':
+                updateGuestReport(data);
+                break;
+        }
+    }
+    
+    function updateOccupancyReport(data) {
+        // Update chart
+        const labels = data.daily_occupancy.map(item => item.date);
+        const occupiedData = data.daily_occupancy.map(item => item.occupied_rooms);
+        const availableData = data.daily_occupancy.map(item => item.available_rooms);
+        
+        occupancyChart.data.labels = labels;
+        occupancyChart.data.datasets = [
+            {
+                label: 'Occupied Rooms',
+                data: occupiedData,
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            },
+            {
+                label: 'Available Rooms',
+                data: availableData,
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                tension: 0.1
+            }
+        ];
+        occupancyChart.update();
+        
+        // Update table
+        const tableBody = document.getElementById('occupancy-table-body');
+        tableBody.innerHTML = '';
+        
+        data.daily_occupancy.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.date}</td>
+                <td>${item.occupied_rooms}</td>
+                <td>${item.available_rooms}</td>
+                <td>${item.occupancy_rate}%</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+    
+    function updateRevenueReport(data) {
+        // Similar implementation for revenue report
+        // ...
+    }
+    
+    function updateGuestReport(data) {
+        // Similar implementation for guest report
+        // ...
+    }
+    
+    function formatDate(date) {
+        return date.toISOString().split('T')[0];
+    }
+    
+    // Initialize
+    initCharts();
+}
+
+// Settings Management Functions
+function setupSettings() {
+    // Tab switching
+    const tabLinks = document.querySelectorAll('.tab-link');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            const tabId = this.getAttribute('data-tab');
+            
+            // Update active tab
+            tabLinks.forEach(tab => tab.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Show corresponding content
+            tabContents.forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+    });
+    
+    // Room Type Management
+    setupRoomTypeManagement();
+    
+    // User Management
+    setupUserManagement();
+    
+    // Load initial settings
+    loadGeneralSettings();
+    loadTaxSettings();
+}
+
+function setupRoomTypeManagement() {
+    // Similar to other management setups
+    // ...
+}
+
+function setupUserManagement() {
+    // Similar to other management setups
+    // ...
+}
+
+function loadGeneralSettings() {
+    fetch('/api/settings/general')
+        .then(response => response.json())
+        .then(settings => {
+            document.getElementById('hotel-name').value = settings.hotel_name;
+            document.getElementById('hotel-address').value = settings.hotel_address;
+            document.getElementById('hotel-phone').value = settings.hotel_phone;
+            document.getElementById('hotel-email').value = settings.hotel_email;
+            document.getElementById('currency').value = settings.currency;
+        });
+}
+
+function loadTaxSettings() {
+    fetch('/api/settings/taxes')
+        .then(response => response.json())
+        .then(settings => {
+            document.getElementById('tax-rate').value = settings.tax_rate;
+            document.getElementById('service-fee').value = settings.service_fee;
+            document.getElementById('reservation-fee').value = settings.reservation_fee;
+        });
+}
+
+// Update the init function to include reports and settings setup
+function init() {
+    setupNavigation();
+    renderAvailabilityChart();
+    setupReservationModal();
+    populateReservationsTable();
+    setupDateValidation();
+    setupGuestManagement();
+    setupRoomManagement();
+    setupServiceManagement();
+    setupReports(); // Add this line
+    setupSettings(); // Add this line
+}
+
 // Room Management Functions
 function setupRoomManagement() {
     // DOM Elements

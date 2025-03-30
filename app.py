@@ -2079,6 +2079,129 @@ def generate_bill():
         if 'cur' in locals():
             cur.close()
 
+# Reports API Endpoints
+@app.route('/api/reports/guest', methods=['GET'])
+def get_guest_report():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    # Get optional date range parameters
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    try:
+        cur = mysql.connection.cursor()
+        
+        # Total guests
+        cur.execute("SELECT COUNT(*) as total_guests FROM guests")
+        total_guests = cur.fetchone()['total_guests']
+        
+        # New guests in period
+        cur.execute("""
+            SELECT COUNT(*) as new_guests 
+            FROM guests 
+            WHERE created_at BETWEEN %s AND %s
+        """, (start_date, end_date))
+        new_guests = cur.fetchone()['new_guests']
+        
+        # Repeat guests
+        cur.execute("""
+            SELECT COUNT(DISTINCT g.id) as repeat_guests
+            FROM guests g
+            JOIN reservations r ON g.id = r.guest_id
+            WHERE r.check_in_date BETWEEN %s AND %s
+            AND g.id IN (
+                SELECT guest_id FROM reservations 
+                WHERE check_in_date < %s
+                GROUP BY guest_id HAVING COUNT(*) > 1
+            )
+        """, (start_date, end_date, start_date))
+        repeat_guests = cur.fetchone()['repeat_guests']
+        
+        # Guest countries
+        cur.execute("""
+            SELECT country, COUNT(*) as count
+            FROM guests
+            WHERE country IS NOT NULL AND country != ''
+            GROUP BY country
+            ORDER BY count DESC
+            LIMIT 5
+        """)
+        top_countries = cur.fetchall()
+        
+        return jsonify({
+            'total_guests': total_guests,
+            'new_guests': new_guests,
+            'repeat_guests': repeat_guests,
+            'top_countries': top_countries,
+            'start_date': start_date,
+            'end_date': end_date
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+# Settings API Endpoints
+@app.route('/api/settings/general', methods=['GET'])
+def get_general_settings():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM settings WHERE setting_type = 'general'")
+        settings = cur.fetchone()
+        
+        if not settings:
+            return jsonify({
+                'hotel_name': 'My Hotel',
+                'hotel_address': '',
+                'hotel_phone': '',
+                'hotel_email': '',
+                'currency': 'USD'
+            })
+            
+        return jsonify(json.loads(settings['setting_value']))
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/settings/general', methods=['POST'])
+def save_general_settings():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+    
+    try:
+        cur = mysql.connection.cursor()
+        setting_value = json.dumps({
+            'hotel_name': data['hotel_name'],
+            'hotel_address': data['hotel_address'],
+            'hotel_phone': data['hotel_phone'],
+            'hotel_email': data['hotel_email'],
+            'currency': data['currency']
+        })
+        
+        cur.execute("""
+            INSERT INTO settings (setting_type, setting_value)
+            VALUES ('general', %s)
+            ON DUPLICATE KEY UPDATE setting_value = %s
+        """, (setting_value, setting_value))
+        
+        mysql.connection.commit()
+        return jsonify({'success': True, 'message': 'Settings saved'})
+        
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
 # Main entry point
 if __name__ == '__main__':
     app.run(debug=True)
