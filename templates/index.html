@@ -929,12 +929,17 @@
 </section>
 
 <!-- Add this settings section with the other content sections -->
+<!-- Update the settings section in index.html -->
 <section id="settings" class="content">
     <h2>System Settings</h2>
     
     <div class="settings-tabs">
         <div class="tab-nav">
             <button class="tab-link active" data-tab="general">General</button>
+            <button class="tab-link" data-tab="room-types">Room Types</button>
+            <button class="tab-link" data-tab="taxes">Taxes & Fees</button>
+            <button class="tab-link" data-tab="users">User Management</button>
+            <button class="tab-link" data-tab="notifications">Notifications</button>
         </div>
         
         <div class="tab-content active" id="general-tab">
@@ -960,18 +965,285 @@
                     </div>
                 </div>
                 
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="timezone">Timezone</label>
+                        <select id="timezone" name="timezone" required>
+                            <option value="UTC">UTC</option>
+                            <option value="IST">India Standard Time (IST)</option>
+                            <option value="EST">Eastern Time (EST)</option>
+                            <option value="PST">Pacific Time (PST)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="currency">Currency</label>
+                        <select id="currency" name="currency" required>
+                            <option value="INR">Rupees (₹)</option>
+                            <option value="USD">US Dollar ($)</option>
+                            <option value="EUR">Euro (€)</option>
+                            <option value="GBP">British Pound (£)</option>
+                        </select>
+                    </div>
+                </div>
+                
                 <div class="form-group">
-                    <label for="currency">Currency</label>
-                    <select id="currency" name="currency" required>
-                        <option value="INR">Rupees (₹)</option>
-                        <option value="USD">US Dollar ($)</option>
-                        <option value="EUR">Euro (€)</option>
-                        <option value="GBP">British Pound (£)</option>
-                    </select>
+                    <label for="checkin-time">Default Check-in Time</label>
+                    <input type="time" id="checkin-time" name="checkin_time" value="14:00" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="checkout-time">Default Check-out Time</label>
+                    <input type="time" id="checkout-time" name="checkout_time" value="12:00" required>
                 </div>
                 
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Save Settings</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="tab-content" id="room-types-tab">
+            <div class="action-bar">
+                <button class="btn-primary" id="new-room-type-btn"><i class="fas fa-plus"></i> New Room Type</button>
+            </div>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Base Price</th>
+                        <th>Rooms</th>
+                        <th>Amenities</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="room-types-table-body">
+                    <!-- Will be populated by JavaScript -->
+                </tbody>
+            </table>
+            
+            <!-- Room Type Form Modal -->
+            <div id="room-type-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h3 id="room-type-modal-title">New Room Type</h3>
+                    
+                    <form id="room-type-form">
+                        <input type="hidden" id="room-type-id">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="room-type-name">Name*</label>
+                                <input type="text" id="room-type-name" name="name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="room-type-price">Base Price*</label>
+                                <input type="number" id="room-type-price" name="base_price" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="room-type-description">Description</label>
+                            <textarea id="room-type-description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Amenities</label>
+                            <div class="amenities-checkboxes" id="amenities-container">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancel-room-type">Cancel</button>
+                            <button type="submit" class="btn-primary">Save Room Type</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="taxes-tab">
+            <form id="tax-settings-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tax-rate">Tax Rate (%)</label>
+                        <input type="number" id="tax-rate" name="tax_rate" min="0" max="50" step="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="service-fee">Service Fee (%)</label>
+                        <input type="number" id="service-fee" name="service_fee" min="0" max="20" step="0.1" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="reservation-fee">Reservation Fee (Fixed)</label>
+                        <input type="number" id="reservation-fee" name="reservation_fee" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="city-tax">City Tax (per night)</label>
+                        <input type="number" id="city-tax" name="city_tax" min="0" step="0.01">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="tax-inclusive" name="tax_inclusive"> Prices shown include taxes
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Tax Settings</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="tab-content" id="users-tab">
+            <div class="action-bar">
+                <button class="btn-primary" id="new-user-btn"><i class="fas fa-plus"></i> New User</button>
+            </div>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Last Login</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body">
+                    <!-- Will be populated by JavaScript -->
+                </tbody>
+            </table>
+            
+            <!-- User Form Modal -->
+            <div id="user-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h3 id="user-modal-title">New User</h3>
+                    
+                    <form id="user-form">
+                        <input type="hidden" id="user-id">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="user-username">Username*</label>
+                                <input type="text" id="user-username" name="username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-email">Email*</label>
+                                <input type="email" id="user-email" name="email" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="user-first-name">First Name*</label>
+                                <input type="text" id="user-first-name" name="first_name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-last-name">Last Name*</label>
+                                <input type="text" id="user-last-name" name="last_name" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="user-password">Password*</label>
+                                <input type="password" id="user-password" name="password" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-role">Role*</label>
+                                <select id="user-role" name="role" required>
+                                    <option value="admin">Admin</option>
+                                    <option value="manager">Manager</option>
+                                    <option value="receptionist">Receptionist</option>
+                                    <option value="housekeeping">Housekeeping</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="user-active" name="is_active" checked> Active
+                            </label>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancel-user">Cancel</button>
+                            <button type="submit" class="btn-primary">Save User</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="notifications-tab">
+            <form id="notification-settings-form">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enable-email" name="enable_email" checked> Enable Email Notifications
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="smtp-host">SMTP Host</label>
+                    <input type="text" id="smtp-host" name="smtp_host">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="smtp-port">SMTP Port</label>
+                        <input type="number" id="smtp-port" name="smtp_port">
+                    </div>
+                    <div class="form-group">
+                        <label for="smtp-username">SMTP Username</label>
+                        <input type="text" id="smtp-username" name="smtp_username">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="smtp-password">SMTP Password</label>
+                    <input type="password" id="smtp-password" name="smtp_password">
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="smtp-ssl" name="smtp_ssl" checked> Use SSL
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notify-new-reservation" name="notify_new_reservation" checked> Notify on new reservations
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notify-checkin" name="notify_checkin" checked> Notify on check-ins
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notify-checkout" name="notify_checkout" checked> Notify on check-outs
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notify-maintenance" name="notify_maintenance" checked> Notify on maintenance requests
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Notification Settings</button>
                 </div>
             </form>
         </div>

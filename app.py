@@ -18,7 +18,7 @@ CORS(app)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'  # Update with your MySQL username
-app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
+app.config['MYSQL_PASSWORD'] = 'tithi2002'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
@@ -861,123 +861,78 @@ def update_room_type(id):
     if 'logged_in' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    # Check if user has admin role
     if session.get('role') != 'admin':
         return jsonify({'error': 'Permission denied. Admin role required'}), 403
 
     data = request.json
-
     cur = mysql.connection.cursor()
 
-    # First check if room type exists
-    cur.execute("SELECT * FROM room_types WHERE id = %s", (id,))
-    room_type = cur.fetchone()
+    try:
+        # Check if room type exists
+        cur.execute("SELECT * FROM room_types WHERE id = %s", (id,))
+        room_type = cur.fetchone()
 
-    if not room_type:
-        cur.close()
-        return jsonify({'error': 'Room type not found'}), 404
+        if not room_type:
+            return jsonify({'error': 'Room type not found'}), 404
 
-    # Build update query based on provided fields
-    update_fields = []
-    params = []
+        # Build update query
+        update_fields = []
+        params = []
 
-    if 'name' in data:
-        # Check if the new name already exists (except for this room type)
-        cur.execute(
-            "SELECT id FROM room_types WHERE name = %s AND id != %s", (data['name'], id))
-        existing_type = cur.fetchone()
+        if 'name' in data:
+            # Check for duplicate name
+            cur.execute("SELECT id FROM room_types WHERE name = %s AND id != %s", 
+                       (data['name'], id))
+            if cur.fetchone():
+                return jsonify({'error': 'Room type name already exists'}), 400
+            update_fields.append("name = %s")
+            params.append(data['name'])
 
-        if existing_type:
-            cur.close()
-            return jsonify({'error': 'Room type name already exists'}), 400
+        if 'description' in data:
+            update_fields.append("description = %s")
+            params.append(data.get('description', ''))
 
-        update_fields.append("name = %s")
-        params.append(data['name'])
+        if 'base_price' in data:
+            update_fields.append("base_price = %s")
+            params.append(data['base_price'])
 
-    if 'description' in data:
-        update_fields.append("description = %s")
-        params.append(data['description'])
+        if 'amenities' in data:
+            update_fields.append("amenities = %s")
+            params.append(json.dumps(data['amenities']))
 
-    if 'base_price' in data:
-        update_fields.append("base_price = %s")
-        params.append(data['base_price'])
-
-    if 'amenities' in data:
-        update_fields.append("amenities = %s")
-        params.append(json.dumps(data['amenities']))
-
-    # Only update if there are fields to update
-    if update_fields:
-        # Create the query
-        query = "UPDATE room_types SET " + \
-            ", ".join(update_fields) + " WHERE id = %s"
-        params.append(id)
-
-        try:
+        if update_fields:
+            query = "UPDATE room_types SET " + ", ".join(update_fields) + " WHERE id = %s"
+            params.append(id)
             cur.execute(query, tuple(params))
             mysql.connection.commit()
 
-            # Get the updated room type
-            cur.execute("""
-                SELECT rt.*, 
-                    (SELECT COUNT(*) FROM rooms WHERE room_type_id = rt.id) as room_count
-                FROM room_types rt
-                WHERE rt.id = %s
-            """, (id,))
+        # Get updated room type
+        cur.execute("""
+            SELECT rt.*, 
+                (SELECT COUNT(*) FROM rooms WHERE room_type_id = rt.id) as room_count
+            FROM room_types rt
+            WHERE rt.id = %s
+        """, (id,))
+        updated_room_type = cur.fetchone()
 
-            updated_room_type = cur.fetchone()
+        # Parse amenities
+        if updated_room_type['amenities']:
+            try:
+                updated_room_type['amenities'] = json.loads(updated_room_type['amenities'])
+            except:
+                updated_room_type['amenities'] = []
 
-        except Exception as e:
-            mysql.connection.rollback()
-            return jsonify({'error': str(e)}), 500
-        finally:
-            cur.close()
+        return jsonify({
+            'success': True,
+            'message': 'Room type updated successfully',
+            'room_type': updated_room_type
+        })
 
-            # Parse JSON amenities
-            if update_fields:
-                # Create the query
-                query = "UPDATE room_types SET " + \
-                ", ".join(update_fields) + " WHERE id = %s"
-        params.append(id)
-
-        try:
-            cur.execute(query, tuple(params))
-            mysql.connection.commit()
-
-            # Get the updated room type
-            cur.execute("""
-                SELECT rt.*, 
-                    (SELECT COUNT(*) FROM rooms WHERE room_type_id = rt.id) as room_count
-                FROM room_types rt
-                WHERE rt.id = %s
-            """, (id,))
-
-            updated_room_type = cur.fetchone()
-
-            # Parse JSON amenities
-            if updated_room_type['amenities']:
-                try:
-                    updated_room_type['amenities'] = json.loads(
-                        updated_room_type['amenities'])
-                except:
-                    updated_room_type['amenities'] = []
-
-            return jsonify({
-                'success': True,
-                'message': 'Room type updated successfully',
-                'room_type': updated_room_type
-            })
-
-        except Exception as e:
-            mysql.connection.rollback()
-            return jsonify({'error': str(e)}), 500
-
-        finally:
-            cur.close()
-
-    else:
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
         cur.close()
-        return jsonify({'message': 'No changes to update'})
 
 
 @app.route('/api/room-types/<int:id>', methods=['DELETE'])
@@ -2144,13 +2099,15 @@ def get_guest_report():
         cur.close()
 
 # Settings API Endpoints
+# Add to app.py
+# API Routes for Settings
 @app.route('/api/settings/general', methods=['GET'])
 def get_general_settings():
     if 'logged_in' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
+    cur = mysql.connection.cursor()
     try:
-        cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM settings WHERE setting_type = 'general'")
         settings = cur.fetchone()
         
@@ -2160,11 +2117,13 @@ def get_general_settings():
                 'hotel_address': '',
                 'hotel_phone': '',
                 'hotel_email': '',
-                'currency': 'USD'
+                'currency': 'USD',
+                'timezone': 'UTC',
+                'checkin_time': '14:00',
+                'checkout_time': '12:00'
             })
             
         return jsonify(json.loads(settings['setting_value']))
-        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -2176,15 +2135,25 @@ def save_general_settings():
         return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.json
-    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    required_fields = ['hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'currency']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    cur = mysql.connection.cursor()
     try:
-        cur = mysql.connection.cursor()
         setting_value = json.dumps({
             'hotel_name': data['hotel_name'],
             'hotel_address': data['hotel_address'],
             'hotel_phone': data['hotel_phone'],
             'hotel_email': data['hotel_email'],
-            'currency': data['currency']
+            'currency': data['currency'],
+            'timezone': data.get('timezone', 'UTC'),
+            'checkin_time': data.get('checkin_time', '14:00'),
+            'checkout_time': data.get('checkout_time', '12:00')
         })
         
         cur.execute("""
@@ -2194,8 +2163,323 @@ def save_general_settings():
         """, (setting_value, setting_value))
         
         mysql.connection.commit()
-        return jsonify({'success': True, 'message': 'Settings saved'})
+        return jsonify({'success': True, 'message': 'General settings saved'})
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/settings/taxes', methods=['GET'])
+def get_tax_settings():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    cur = mysql.connection.cursor()
+    try:
+        cur.execute("SELECT * FROM settings WHERE setting_type = 'taxes'")
+        settings = cur.fetchone()
         
+        if not settings:
+            return jsonify({
+                'tax_rate': 8.0,
+                'service_fee': 10.0,
+                'reservation_fee': 0.0,
+                'city_tax': 0.0,
+                'tax_inclusive': False
+            })
+            
+        return jsonify(json.loads(settings['setting_value']))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/settings/taxes', methods=['POST'])
+def save_tax_settings():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    required_fields = ['tax_rate', 'service_fee']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    cur = mysql.connection.cursor()
+    try:
+        setting_value = json.dumps({
+            'tax_rate': float(data['tax_rate']),
+            'service_fee': float(data['service_fee']),
+            'reservation_fee': float(data.get('reservation_fee', 0)),
+            'city_tax': float(data.get('city_tax', 0)),
+            'tax_inclusive': bool(data.get('tax_inclusive', False))
+        })
+        
+        cur.execute("""
+            INSERT INTO settings (setting_type, setting_value)
+            VALUES ('taxes', %s)
+            ON DUPLICATE KEY UPDATE setting_value = %s
+        """, (setting_value, setting_value))
+        
+        mysql.connection.commit()
+        return jsonify({'success': True, 'message': 'Tax settings saved'})
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/settings/notifications', methods=['GET'])
+def get_notification_settings():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    cur = mysql.connection.cursor()
+    try:
+        cur.execute("SELECT * FROM settings WHERE setting_type = 'notifications'")
+        settings = cur.fetchone()
+        
+        if not settings:
+            return jsonify({
+                'enable_email': True,
+                'smtp_host': '',
+                'smtp_port': '',
+                'smtp_username': '',
+                'smtp_password': '',
+                'smtp_ssl': True,
+                'notify_new_reservation': True,
+                'notify_checkin': True,
+                'notify_checkout': True,
+                'notify_maintenance': True
+            })
+            
+        return jsonify(json.loads(settings['setting_value']))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/settings/notifications', methods=['POST'])
+def save_notification_settings():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    cur = mysql.connection.cursor()
+    try:
+        setting_value = json.dumps({
+            'enable_email': bool(data.get('enable_email', True)),
+            'smtp_host': data.get('smtp_host', ''),
+            'smtp_port': data.get('smtp_port', ''),
+            'smtp_username': data.get('smtp_username', ''),
+            'smtp_password': data.get('smtp_password', ''),
+            'smtp_ssl': bool(data.get('smtp_ssl', True)),
+            'notify_new_reservation': bool(data.get('notify_new_reservation', True)),
+            'notify_checkin': bool(data.get('notify_checkin', True)),
+            'notify_checkout': bool(data.get('notify_checkout', True)),
+            'notify_maintenance': bool(data.get('notify_maintenance', True))
+        })
+        
+        cur.execute("""
+            INSERT INTO settings (setting_type, setting_value)
+            VALUES ('notifications', %s)
+            ON DUPLICATE KEY UPDATE setting_value = %s
+        """, (setting_value, setting_value))
+        
+        mysql.connection.commit()
+        return jsonify({'success': True, 'message': 'Notification settings saved'})
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    cur = mysql.connection.cursor()
+    try:
+        cur.execute("""
+            SELECT id, username, first_name, last_name, email, role, is_active, last_login
+            FROM users
+            ORDER BY username
+        """)
+        users = cur.fetchall()
+        
+        # Format dates
+        for user in users:
+            if user['last_login']:
+                user['last_login'] = user['last_login'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        return jsonify(users)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/users/<int:id>', methods=['GET'])
+def get_user(id):
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    cur = mysql.connection.cursor()
+    try:
+        cur.execute("""
+            SELECT id, username, first_name, last_name, email, role, is_active, last_login
+            FROM users
+            WHERE id = %s
+        """, (id,))
+        user = cur.fetchone()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        if user['last_login']:
+            user['last_login'] = user['last_login'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        return jsonify(user)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    required_fields = ['username', 'email', 'first_name', 'last_name', 'password', 'role']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    cur = mysql.connection.cursor()
+    try:
+        # Check if username already exists
+        cur.execute("SELECT id FROM users WHERE username = %s", (data['username'],))
+        if cur.fetchone():
+            return jsonify({'error': 'Username already exists'}), 400
+
+        # Hash the password
+        hashed_password = hashlib.sha256(data['password'].encode()).hexdigest()
+
+        # Create user
+        cur.execute("""
+            INSERT INTO users (username, first_name, last_name, email, password, role, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data['username'],
+            data['first_name'],
+            data['last_name'],
+            data['email'],
+            hashed_password,
+            data['role'],
+            bool(data.get('is_active', True))
+        ))
+        
+        mysql.connection.commit()
+        return jsonify({'success': True, 'message': 'User created successfully'})
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/users/<int:id>', methods=['PUT'])
+def update_user(id):
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    required_fields = ['username', 'email', 'first_name', 'last_name', 'role']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    cur = mysql.connection.cursor()
+    try:
+        # Check if username already exists for another user
+        cur.execute("SELECT id FROM users WHERE username = %s AND id != %s", (data['username'], id))
+        if cur.fetchone():
+            return jsonify({'error': 'Username already exists'}), 400
+
+        # Build update query
+        update_fields = []
+        params = []
+        
+        update_fields.append("username = %s")
+        params.append(data['username'])
+        
+        update_fields.append("first_name = %s")
+        params.append(data['first_name'])
+        
+        update_fields.append("last_name = %s")
+        params.append(data['last_name'])
+        
+        update_fields.append("email = %s")
+        params.append(data['email'])
+        
+        update_fields.append("role = %s")
+        params.append(data['role'])
+        
+        update_fields.append("is_active = %s")
+        params.append(bool(data.get('is_active', True)))
+        
+        # Update password if provided
+        if 'password' in data and data['password']:
+            hashed_password = hashlib.sha256(data['password'].encode()).hexdigest()
+            update_fields.append("password = %s")
+            params.append(hashed_password)
+        
+        params.append(id)
+        
+        query = "UPDATE users SET " + ", ".join(update_fields) + " WHERE id = %s"
+        cur.execute(query, tuple(params))
+        
+        mysql.connection.commit()
+        return jsonify({'success': True, 'message': 'User updated successfully'})
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+
+@app.route('/api/users/<int:id>', methods=['DELETE'])
+def delete_user(id):
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    # Prevent deleting own account
+    if id == session['user_id']:
+        return jsonify({'error': 'You cannot delete your own account'}), 400
+
+    cur = mysql.connection.cursor()
+    try:
+        # Check if user exists
+        cur.execute("SELECT id FROM users WHERE id = %s", (id,))
+        if not cur.fetchone():
+            return jsonify({'error': 'User not found'}), 404
+
+        # Delete user
+        cur.execute("DELETE FROM users WHERE id = %s", (id,))
+        mysql.connection.commit()
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
     except Exception as e:
         mysql.connection.rollback()
         return jsonify({'error': str(e)}), 500

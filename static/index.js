@@ -1447,62 +1447,503 @@ function setupSettings() {
         });
     });
     
-    // Room Type Management
-    setupRoomTypeManagement();
-    
-    // User Management
-    setupUserManagement();
-    
-    // Load initial settings
+    // Load all settings components
     loadGeneralSettings();
-    loadTaxSettings();
-}
-
-function setupRoomTypeManagement() {
-    // Similar to other management setups
-    // ...
-}
-
-function setupUserManagement() {
-    // Similar to other management setups
-    // ...
+    setupRoomTypeManagement();
+    setupTaxSettings();
+    setupUserManagement();
+    setupNotificationSettings();
+    
+    // Form submission handlers
+    document.getElementById('general-settings-form')?.addEventListener('submit', saveGeneralSettings);
+    document.getElementById('tax-settings-form')?.addEventListener('submit', saveTaxSettings);
+    document.getElementById('notification-settings-form')?.addEventListener('submit', saveNotificationSettings);
 }
 
 function loadGeneralSettings() {
     fetch('/api/settings/general')
         .then(response => response.json())
         .then(settings => {
-            document.getElementById('hotel-name').value = settings.hotel_name;
-            document.getElementById('hotel-address').value = settings.hotel_address;
-            document.getElementById('hotel-phone').value = settings.hotel_phone;
-            document.getElementById('hotel-email').value = settings.hotel_email;
-            document.getElementById('currency').value = settings.currency;
+            document.getElementById('hotel-name').value = settings.hotel_name || '';
+            document.getElementById('hotel-address').value = settings.hotel_address || '';
+            document.getElementById('hotel-phone').value = settings.hotel_phone || '';
+            document.getElementById('hotel-email').value = settings.hotel_email || '';
+            document.getElementById('currency').value = settings.currency || 'USD';
+            document.getElementById('timezone').value = settings.timezone || 'UTC';
+            document.getElementById('checkin-time').value = settings.checkin_time || '14:00';
+            document.getElementById('checkout-time').value = settings.checkout_time || '12:00';
+        })
+        .catch(error => {
+            console.error('Error loading general settings:', error);
+            showNotification('Failed to load general settings', 'error');
         });
 }
 
-function loadTaxSettings() {
+function saveGeneralSettings(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const settings = {
+        hotel_name: formData.get('hotel_name'),
+        hotel_address: formData.get('hotel_address'),
+        hotel_phone: formData.get('hotel_phone'),
+        hotel_email: formData.get('hotel_email'),
+        currency: formData.get('currency'),
+        timezone: formData.get('timezone'),
+        checkin_time: formData.get('checkin_time'),
+        checkout_time: formData.get('checkout_time')
+    };
+    
+    fetch('/api/settings/general', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to save settings');
+        return response.json();
+    })
+    .then(data => {
+        showNotification('General settings saved successfully');
+    })
+    .catch(error => {
+        console.error('Error saving general settings:', error);
+        showNotification('Failed to save general settings', 'error');
+    });
+}
+
+function setupRoomTypeManagement() {
+    const newRoomTypeBtn = document.getElementById('new-room-type-btn');
+    const roomTypeModal = document.getElementById('room-type-modal');
+    const roomTypeForm = document.getElementById('room-type-form');
+    const cancelRoomTypeBtn = document.getElementById('cancel-room-type');
+    
+    // Common amenities (could be loaded from API)
+    const commonAmenities = [
+        'WiFi', 'TV', 'Air Conditioning', 'Mini Bar', 'Safe', 
+        'Hair Dryer', 'Coffee Maker', 'Iron', 'Room Service',
+        'Daily Cleaning', 'Balcony', 'Ocean View'
+    ];
+    
+    // Populate amenities checkboxes
+    const amenitiesContainer = document.getElementById('amenities-container');
+    commonAmenities.forEach(amenity => {
+        const checkbox = document.createElement('div');
+        checkbox.className = 'amenity-checkbox';
+        checkbox.innerHTML = `
+            <label>
+                <input type="checkbox" name="amenities" value="${amenity}"> ${amenity}
+            </label>
+        `;
+        amenitiesContainer.appendChild(checkbox);
+    });
+    
+    // Load room types
+    loadRoomTypes();
+    
+    // Event listeners
+    newRoomTypeBtn?.addEventListener('click', openRoomTypeModal);
+    cancelRoomTypeBtn?.addEventListener('click', closeRoomTypeModal);
+    roomTypeForm?.addEventListener('submit', handleRoomTypeFormSubmit);
+    
+    function loadRoomTypes() {
+        fetch('/api/room-types')
+            .then(response => response.json())
+            .then(roomTypes => {
+                const tableBody = document.getElementById('room-types-table-body');
+                tableBody.innerHTML = '';
+                
+                roomTypes.forEach(rt => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${rt.name}</td>
+                        <td>$${rt.base_price}</td>
+                        <td>${rt.room_count || 0}</td>
+                        <td>${rt.amenities ? rt.amenities.split(',').slice(0, 3).join(', ') : ''}${rt.amenities && rt.amenities.split(',').length > 3 ? '...' : ''}</td>
+                        <td>
+                            <button class="btn-action edit-room-type" data-id="${rt.id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-action delete-room-type" data-id="${rt.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                
+                // Add event listeners to action buttons
+                document.querySelectorAll('.edit-room-type').forEach(btn => {
+                    btn.addEventListener('click', () => editRoomType(btn.dataset.id));
+                });
+                
+                document.querySelectorAll('.delete-room-type').forEach(btn => {
+                    btn.addEventListener('click', () => deleteRoomType(btn.dataset.id));
+                });
+            })
+            .catch(error => {
+                console.error('Error loading room types:', error);
+                showNotification('Failed to load room types', error);
+            });
+    }
+    
+    function openRoomTypeModal() {
+        document.getElementById('room-type-modal-title').textContent = 'New Room Type';
+        document.getElementById('room-type-id').value = '';
+        roomTypeForm.reset();
+        roomTypeModal.style.display = 'block';
+    }
+    
+    function closeRoomTypeModal() {
+        roomTypeModal.style.display = 'none';
+    }
+    
+    function editRoomType(id) {
+        fetch(`/api/room-types/${id}`)
+            .then(response => response.json())
+            .then(roomType => {
+                document.getElementById('room-type-modal-title').textContent = 'Edit Room Type';
+                document.getElementById('room-type-id').value = roomType.id;
+                document.getElementById('room-type-name').value = roomType.name;
+                document.getElementById('room-type-price').value = roomType.base_price;
+                document.getElementById('room-type-description').value = roomType.description || '';
+                
+                // Check amenities
+                const amenities = roomType.amenities ? JSON.parse(roomType.amenities) : [];
+                document.querySelectorAll('#amenities-container input[type="checkbox"]').forEach(checkbox => {
+                    checkbox.checked = amenities.includes(checkbox.value);
+                });
+                
+                roomTypeModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading room type:', error);
+                showNotification('Failed to load room type', 'error');
+            });
+    }
+    
+    function handleRoomTypeFormSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const checkedAmenities = Array.from(document.querySelectorAll('#amenities-container input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.value);
+        
+        const roomTypeData = {
+            name: formData.get('name'),
+            base_price: formData.get('base_price'),
+            description: formData.get('description'),
+            amenities: checkedAmenities
+        };
+        
+        const id = document.getElementById('room-type-id').value;
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/room-types/${id}` : '/api/room-types';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(roomTypeData)
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to save room type');
+            return response.json();
+        })
+        .then(data => {
+            showNotification('Room type saved successfully');
+            closeRoomTypeModal();
+            loadRoomTypes();
+        })
+        .catch(error => {
+            console.error('Error saving room type:', error);
+            showNotification('Failed to save room type', 'error');
+        });
+    }
+    
+    function deleteRoomType(id) {
+        if (!confirm('Are you sure you want to delete this room type? This action cannot be undone.')) return;
+        
+        fetch(`/api/room-types/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to delete room type');
+            return response.json();
+        })
+        .then(data => {
+            showNotification('Room type deleted successfully');
+            loadRoomTypes();
+        })
+        .catch(error => {
+            console.error('Error deleting room type:', error);
+            showNotification('Failed to delete room type', 'error');
+        });
+    }
+}
+
+function setupTaxSettings() {
     fetch('/api/settings/taxes')
         .then(response => response.json())
         .then(settings => {
-            document.getElementById('tax-rate').value = settings.tax_rate;
-            document.getElementById('service-fee').value = settings.service_fee;
-            document.getElementById('reservation-fee').value = settings.reservation_fee;
+            document.getElementById('tax-rate').value = settings.tax_rate || 0;
+            document.getElementById('service-fee').value = settings.service_fee || 0;
+            document.getElementById('reservation-fee').value = settings.reservation_fee || 0;
+            document.getElementById('city-tax').value = settings.city_tax || 0;
+            document.getElementById('tax-inclusive').checked = settings.tax_inclusive || false;
+        })
+        .catch(error => {
+            console.error('Error loading tax settings:', error);
+            showNotification('Failed to load tax settings', 'error');
         });
 }
 
-// Update the init function to include reports and settings setup
-function init() {
-    setupNavigation();
-    renderAvailabilityChart();
-    setupReservationModal();
-    populateReservationsTable();
-    setupDateValidation();
-    setupGuestManagement();
-    setupRoomManagement();
-    setupServiceManagement();
-    setupReports(); // Add this line
-    setupSettings(); // Add this line
+function saveTaxSettings(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const settings = {
+        tax_rate: formData.get('tax_rate'),
+        service_fee: formData.get('service_fee'),
+        reservation_fee: formData.get('reservation_fee'),
+        city_tax: formData.get('city_tax'),
+        tax_inclusive: formData.get('tax_inclusive') === 'on'
+    };
+    
+    fetch('/api/settings/taxes', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to save tax settings');
+        return response.json();
+    })
+    .then(data => {
+        showNotification('Tax settings saved successfully');
+    })
+    .catch(error => {
+        console.error('Error saving tax settings:', error);
+        showNotification('Failed to save tax settings', 'error');
+    });
 }
+
+function setupUserManagement() {
+    const newUserBtn = document.getElementById('new-user-btn');
+    const userModal = document.getElementById('user-modal');
+    const userForm = document.getElementById('user-form');
+    const cancelUserBtn = document.getElementById('cancel-user');
+    
+    // Load users
+    loadUsers();
+    
+    // Event listeners
+    newUserBtn?.addEventListener('click', openUserModal);
+    cancelUserBtn?.addEventListener('click', closeUserModal);
+    userForm?.addEventListener('submit', handleUserFormSubmit);
+    
+    function loadUsers() {
+        fetch('/api/users')
+            .then(response => response.json())
+            .then(users => {
+                const tableBody = document.getElementById('users-table-body');
+                tableBody.innerHTML = '';
+                
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${user.username}</td>
+                        <td>${user.first_name} ${user.last_name}</td>
+                        <td>${user.email}</td>
+                        <td>${user.role}</td>
+                        <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                        <td><span class="status ${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                            <button class="btn-action edit-user" data-id="${user.id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            ${user.id !== session.user_id ? `
+                            <button class="btn-action delete-user" data-id="${user.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            ` : ''}
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                
+                // Add event listeners to action buttons
+                document.querySelectorAll('.edit-user').forEach(btn => {
+                    btn.addEventListener('click', () => editUser(btn.dataset.id));
+                });
+                
+                document.querySelectorAll('.delete-user').forEach(btn => {
+                    btn.addEventListener('click', () => deleteUser(btn.dataset.id));
+                });
+            })
+            .catch(error => {
+                console.error('Error loading users:', error);
+                showNotification('Failed to load users', 'error');
+            });
+    }
+    
+    function openUserModal() {
+        document.getElementById('user-modal-title').textContent = 'New User';
+        document.getElementById('user-id').value = '';
+        userForm.reset();
+        userModal.style.display = 'block';
+    }
+    
+    function closeUserModal() {
+        userModal.style.display = 'none';
+    }
+    
+    function editUser(id) {
+        fetch(`/api/users/${id}`)
+            .then(response => response.json())
+            .then(user => {
+                document.getElementById('user-modal-title').textContent = 'Edit User';
+                document.getElementById('user-id').value = user.id;
+                document.getElementById('user-username').value = user.username;
+                document.getElementById('user-email').value = user.email;
+                document.getElementById('user-first-name').value = user.first_name;
+                document.getElementById('user-last-name').value = user.last_name;
+                document.getElementById('user-role').value = user.role;
+                document.getElementById('user-active').checked = user.is_active;
+                document.getElementById('user-password').required = false;
+                
+                userModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading user:', error);
+                showNotification('Failed to load user', 'error');
+            });
+    }
+    
+    function handleUserFormSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const userData = {
+            username: formData.get('username'),
+            email: formData.get('email'),
+            first_name: formData.get('first_name'),
+            last_name: formData.get('last_name'),
+            password: formData.get('password'),
+            role: formData.get('role'),
+            is_active: formData.get('is_active') === 'on'
+        };
+        
+        const id = document.getElementById('user-id').value;
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/users/${id}` : '/api/users';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(userData)
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to save user');
+            return response.json();
+        })
+        .then(data => {
+            showNotification('User saved successfully');
+            closeUserModal();
+            loadUsers();
+        })
+        .catch(error => {
+            console.error('Error saving user:', error);
+            showNotification('Failed to save user', 'error');
+        });
+    }
+    
+    function deleteUser(id) {
+        if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+        
+        fetch(`/api/users/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to delete user');
+            return response.json();
+        })
+        .then(data => {
+            showNotification('User deleted successfully');
+            loadUsers();
+        })
+        .catch(error => {
+            console.error('Error deleting user:', error);
+            showNotification('Failed to delete user', 'error');
+        });
+    }
+}
+
+function setupNotificationSettings() {
+    fetch('/api/settings/notifications')
+        .then(response => response.json())
+        .then(settings => {
+            document.getElementById('enable-email').checked = settings.enable_email || false;
+            document.getElementById('smtp-host').value = settings.smtp_host || '';
+            document.getElementById('smtp-port').value = settings.smtp_port || '';
+            document.getElementById('smtp-username').value = settings.smtp_username || '';
+            document.getElementById('smtp-password').value = '';
+            document.getElementById('smtp-ssl').checked = settings.smtp_ssl || false;
+            document.getElementById('notify-new-reservation').checked = settings.notify_new_reservation || false;
+            document.getElementById('notify-checkin').checked = settings.notify_checkin || false;
+            document.getElementById('notify-checkout').checked = settings.notify_checkout || false;
+            document.getElementById('notify-maintenance').checked = settings.notify_maintenance || false;
+        })
+        .catch(error => {
+            console.error('Error loading notification settings:', error);
+            showNotification('Failed to load notification settings', 'error');
+        });
+}
+
+function saveNotificationSettings(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const settings = {
+        enable_email: formData.get('enable_email') === 'on',
+        smtp_host: formData.get('smtp_host'),
+        smtp_port: formData.get('smtp_port'),
+        smtp_username: formData.get('smtp_username'),
+        smtp_password: formData.get('smtp_password'),
+        smtp_ssl: formData.get('smtp_ssl') === 'on',
+        notify_new_reservation: formData.get('notify_new_reservation') === 'on',
+        notify_checkin: formData.get('notify_checkin') === 'on',
+        notify_checkout: formData.get('notify_checkout') === 'on',
+        notify_maintenance: formData.get('notify_maintenance') === 'on'
+    };
+    
+    fetch('/api/settings/notifications', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to save notification settings');
+        return response.json();
+    })
+    .then(data => {
+        showNotification('Notification settings saved successfully');
+    })
+    .catch(error => {
+        console.error('Error saving notification settings:', error);
+        showNotification('Failed to save notification settings', 'error');
+    });
+}
+  
 
 // Room Management Functions
 function setupRoomManagement() {
@@ -1613,11 +2054,8 @@ function setupRoomManagement() {
             });
         });
         
-        document.querySelectorAll('.edit-room').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const roomId = this.getAttribute('data-id');
-                editRoom(roomId);
-            });
+        document.querySelectorAll('.edit-room-type').forEach(btn => {
+            btn.addEventListener('click', () => editRoomType(btn.dataset.id));
         });
         
         document.querySelectorAll('.delete-room').forEach(btn => {
@@ -1731,24 +2169,31 @@ function setupRoomManagement() {
             });
     }
     
-    function editRoom(roomId) {
-        fetch(`/api/rooms/${roomId}`)
-            .then(response => response.json())
-            .then(room => {
-                document.getElementById('room-modal-title').textContent = 'Edit Room';
-                document.getElementById('room-id').value = room.id;
-                document.getElementById('room-number').value = room.room_number;
-                document.getElementById('room-type').value = room.room_type_id;
-                document.getElementById('room-status').value = room.status;
-                document.getElementById('room-notes').value = room.notes || '';
-                
-                roomModal.style.display = 'block';
-            })
-            .catch(error => {
-                console.error('Error loading room for edit:', error);
-                showNotification('Failed to load room for editing', 'error');
-            });
-    }
+    function editRoomType(roomTypeId) {
+    fetch(`/api/room-types/${roomTypeId}`)
+        .then(response => response.json())
+        .then(roomType => {
+            document.getElementById('room-type-modal-title').textContent = 'Edit Room Type';
+            document.getElementById('room-type-id').value = roomType.id;
+            document.getElementById('room-type-name').value = roomType.name;
+            document.getElementById('room-type-price').value = roomType.base_price;
+            document.getElementById('room-type-description').value = roomType.description || '';
+            
+            // Check amenities checkboxes
+            if (roomType.amenities && roomType.amenities.length) {
+                document.querySelectorAll('#amenities-container input[type="checkbox"]').forEach(checkbox => {
+                    checkbox.checked = roomType.amenities.includes(checkbox.value);
+                });
+            }
+            
+            // Show the modal
+            document.getElementById('room-type-modal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error loading room type for edit:', error);
+            showNotification('Failed to load room type for editing', 'error');
+        });
+}
     
     function handleRoomFormSubmit(e) {
         e.preventDefault();
@@ -1831,6 +2276,8 @@ function init() {
     setupRoomManagement(); // Add this line
     setupServiceManagement(); // Add this line
     setupBillingManagement(); // Add this line
+    setupReports();
+    setupSettings();
 }
     // Initialize the app
     init();
