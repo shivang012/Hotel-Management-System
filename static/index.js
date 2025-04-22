@@ -950,13 +950,13 @@ function setupBillingManagement() {
     if (!billingTableBody) return;
 
     // Event Listeners
-    generateBillBtn.addEventListener('click', openGenerateBillModal);
-    cancelGenerateBillBtn.addEventListener('click', closeGenerateBillModal);
-    searchBillingBtn.addEventListener('click', loadBilling);
-    billingSearch.addEventListener('keypress', (e) => e.key === 'Enter' && loadBilling());
-    billingFilter.addEventListener('change', loadBilling);
-    paymentForm.addEventListener('submit', handlePaymentSubmit);
-    generateBillForm.addEventListener('submit', handleGenerateBillSubmit);
+    generateBillBtn?.addEventListener('click', openGenerateBillModal);
+    cancelGenerateBillBtn?.addEventListener('click', closeGenerateBillModal);
+    searchBillingBtn?.addEventListener('click', loadBilling);
+    billingSearch?.addEventListener('keypress', (e) => e.key === 'Enter' && loadBilling());
+    billingFilter?.addEventListener('change', loadBilling);
+    paymentForm?.addEventListener('submit', handlePaymentSubmit);
+    generateBillForm?.addEventListener('submit', handleGenerateBillSubmit);
     window.addEventListener('click', (e) => {
         if (e.target === billModal) closeBillModal();
         if (e.target === generateBillModal) closeGenerateBillModal();
@@ -1106,12 +1106,39 @@ function setupBillingManagement() {
                 // Open modal
                 document.getElementById('bill-modal-title').textContent = `Bill #${bill.id}`;
                 billModal.style.display = 'block';
+          
+                    // Force recalculate modal height
+                setTimeout(() => {
+                    const modalContent = document.querySelector('.modal-content');
+                    const modalBody = document.querySelector('.modal-body');
+                    
+                    // Set max height based on viewport
+                    const maxHeight = window.innerHeight * 0.8; // 80% of viewport height
+                    modalContent.style.maxHeight = `${maxHeight}px`;
+                    modalBody.style.overflowY = 'auto';
+                    modalBody.style.maxHeight = `${maxHeight - 120}px`; // Account for header/footer
+                }, 10);
             })
             .catch(error => {
                 console.error('Error fetching bill details:', error);
                 showNotification('Failed to load bill details', 'error');
             });
+    }l̥
+
+    function closeBillModal() {
+        billModal.style.display = 'none';
+        // Reset any styles we modified
+        const modalContent = document.querySelector('.modal-content');
+        const modalBody = document.querySelector('.modal-body');
+        if (modalContent) {
+            modalContent.style.maxHeight = '';
+        }
+        if (modalBody) {
+            modalBody.style.overflowY = '';
+            modalBody.style.maxHeight = '';
+        }
     }
+
 
     function handlePaymentSubmit(e) {
         e.preventDefault();
@@ -1171,6 +1198,9 @@ function setupBillingManagement() {
 
     function closeBillModal() {
         billModal.style.display = 'none';
+        // Remove scrollable class when closing modal
+        const modalContent = document.querySelector('.modal-content');
+        modalContent?.classList.remove('scrollable-modal');
     }
 
     function handleGenerateBillSubmit(e) {

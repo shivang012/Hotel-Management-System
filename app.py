@@ -18,7 +18,7 @@ CORS(app)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'  # Update with your MySQL username
-app.config['MYSQL_PASSWORD'] = 'tithi2002'  # Update with your MySQL password
+app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
@@ -74,30 +74,6 @@ def login():
             return render_template('login.html', error='Invalid username or password')
 
     return render_template('login.html')
-
-    #         # Return JSON response for API requests
-    #         if request.is_json:
-    #             return jsonify({
-    #                 "message": "Login successful",
-    #                 "user": {
-    #                     "id": user['id'],
-    #                     "username": user['username'],
-    #                     "role": user['role']
-    #                 }
-    #             }), 200
-    #         else:
-    #             # Redirect for HTML form submission
-    #             return redirect(url_for('dashboard'))
-    #     else:
-    #         # Return error response
-    #         if request.is_json:
-    #             return jsonify({"message": "Invalid username or password"}), 401
-    #         else:
-    #             return render_template('login.html', error='Invalid username or password')
-
-    # # Render the login page for GET requests
-    # return render_template('login.html')
-
 
 @app.route('/logout')
 def logout():

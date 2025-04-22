@@ -998,3 +998,62 @@ body {
 .notification-option input {
     margin-right: 10px;
 }
+
+/* Modal Structure */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 800px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.modal-body {
+    padding: 20px 0;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 10px 0;
+    border-top: 1px solid #eee;
+    text-align: right;
+}
+
+/* Make sure the modal is scrollable when content is long */
+.modal-body {
+    overflow-y: auto;
+    max-height: calc(100vh - 200px); /* Fallback value */
+}
+
+/* Responsive adjustments */
+@media (max-height: 700px) {
+    .modal-content {
+        margin: 2% auto;
+    }
+    .modal-body {
+        max-height: calc(100vh - 150px);
+    }
+}
