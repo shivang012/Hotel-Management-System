@@ -2039,20 +2039,29 @@ function setupRoomManagement() {
     }
     function editRoom(roomId) {
         fetch(`/api/rooms/${roomId}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error("Room not found (HTTP " + response.status + ")");
+                return response.json();
+            })
             .then(room => {
-                document.getElementById('room-modal-title').textContent = 'Edit Room';
+                const roomTypeSelect = document.getElementById('room-type');
+            
+                // Fill the edit form with room data
                 document.getElementById('room-id').value = room.id;
-                document.getElementById('room_number').value = room.room_number;
-                document.getElementById('room_type_id').value = room.room_type_id;
-                document.getElementById('status').value = room.status;
-                document.getElementById('notes').value = room.notes || '';
+                document.getElementById('room-number').value = room.room_number;  // New
+                roomTypeSelect.value = room.room_type_id;
+                document.getElementById('room-status').value = room.status;  // New
+                document.getElementById('room-notes').value = room.notes || ""; // Handle null notes
                 
-                roomModal.style.display = 'block';
+                // Disable the room type dropdown
+            roomTypeSelect.disabled = true;
+
+                // Show the modal
+                document.getElementById('room-modal').style.display = 'block';
             })
             .catch(error => {
-                console.error('Error loading room for edit:', error);
-                showNotification('Failed to load room for editing', 'error');
+                console.error("Edit room error:", error);
+                showNotification("Failed to load room: " + error.message, "error");
             });
     }
 
@@ -2095,32 +2104,33 @@ function setupRoomManagement() {
         });
         
         // Add event listeners to action buttons
-        document.querySelectorAll('.view-room').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const roomId = this.getAttribute('data-id');
-                viewRoomDetails(roomId);
-            });
-        });
-        
-        document.querySelectorAll('.edit-room').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const roomId = this.getAttribute('data-id');
-                editRoom(roomId); // Make sure you have this function defined
-            });
-        });
-        
-        document.querySelectorAll('.delete-room').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const roomId = this.getAttribute('data-id');
-                deleteRoom(roomId);
-            });
-        });
-    }
+      // Replace the individual button listeners with this event delegation approach:
+roomTableBody.addEventListener('click', function(e) {
+    const target = e.target.closest('.view-room, .edit-room, .delete-room');
+    if (!target) return;
     
+    const roomId = target.getAttribute('data-id');
+    
+    if (target.classList.contains('view-room')) {
+        viewRoomDetails(roomId);
+    } else if (target.classList.contains('edit-room')) {
+        editRoom(roomId);
+    } else if (target.classList.contains('delete-room')) {
+        deleteRoom(roomId);
+    }
+});
+    }
+
     function openRoomModal() {
+        const roomTypeSelect = document.getElementById('room-type');
+        
         document.getElementById('room-modal-title').textContent = 'New Room';
         document.getElementById('room-id').value = '';
         roomForm.reset();
+        
+        // Enable the room type dropdown for new rooms
+        roomTypeSelect.disabled = false;
+        
         roomModal.style.display = 'block';
     }
     
@@ -2250,13 +2260,26 @@ function setupRoomManagement() {
         e.preventDefault();
         
         const roomId = document.getElementById('room-id').value;
+        const roomTypeSelect = document.getElementById('room-type');
+
+            // Temporarily enable the field to get its value
+        const wasDisabled = roomTypeSelect.disabled;
+        if (wasDisabled) {
+             roomTypeSelect.disabled = false;
+    }
+
         const formData = new FormData(roomForm);
         const roomData = {
-            room_number: formData.get('room_number'),
-            room_type_id: formData.get('room_type_id'),
-            status: formData.get('status'),
-            notes: formData.get('notes')
-        };
+        room_number: formData.get('room-number'),  // Changed
+        room_type_id: formData.get('room-type'),  // Changed
+        status: formData.get('room-status'),  // Changed
+        notes: formData.get('room-notes')
+     };
+
+     // Restore disabled state
+    if (wasDisabled) {
+        roomTypeSelect.disabled = true;
+    }
         
         const method = roomId ? 'PUT' : 'POST';
         const url = roomId ? `/api/rooms/${roomId}` : '/api/rooms';
