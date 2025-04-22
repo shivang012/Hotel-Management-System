@@ -1969,7 +1969,7 @@ function setupRoomManagement() {
     roomFilter.addEventListener('change', filterRooms);
     
     // Load initial rooms and room types
-    loadRoomTypes().then(loadRooms);
+    loadRoomTypes().then(() => loadRooms(roomFilter.value));  // Explicitly use current filter value so that it shows list of rooms 
     
     function loadRoomTypes() {
         return fetch('/api/room-types')
@@ -2007,7 +2007,25 @@ function setupRoomManagement() {
                 showNotification('Failed to load rooms', 'error');
             });
     }
-    
+    function editRoom(roomId) {
+        fetch(`/api/rooms/${roomId}`)
+            .then(response => response.json())
+            .then(room => {
+                document.getElementById('room-modal-title').textContent = 'Edit Room';
+                document.getElementById('room-id').value = room.id;
+                document.getElementById('room_number').value = room.room_number;
+                document.getElementById('room_type_id').value = room.room_type_id;
+                document.getElementById('status').value = room.status;
+                document.getElementById('notes').value = room.notes || '';
+                
+                roomModal.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading room for edit:', error);
+                showNotification('Failed to load room for editing', 'error');
+            });
+    }
+
     function renderRoomTable(rooms) {
         roomTableBody.innerHTML = '';
         
@@ -2054,8 +2072,11 @@ function setupRoomManagement() {
             });
         });
         
-        document.querySelectorAll('.edit-room-type').forEach(btn => {
-            btn.addEventListener('click', () => editRoomType(btn.dataset.id));
+        document.querySelectorAll('.edit-room').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const roomId = this.getAttribute('data-id');
+                editRoom(roomId); // Make sure you have this function defined
+            });
         });
         
         document.querySelectorAll('.delete-room').forEach(btn => {
