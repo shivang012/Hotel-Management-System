@@ -904,7 +904,7 @@ body {
     color: var(--primary-color);
 }
 
-/* Add to styles.css */
+Add to styles.css
 /* Settings Styles */
 .settings-tabs {
     margin-top: 20px;
@@ -999,7 +999,6 @@ body {
     margin-right: 10px;
 }
 
-<<<<<<< Updated upstream
 /* Modal Structure */
 .modal {
     display: none;
@@ -1057,10 +1056,10 @@ body {
     .modal-body {
         max-height: calc(100vh - 150px);
     }
-=======
 #room-type:disabled {
     background-color: #f5f5f5;
     color: #555;
     cursor: not-allowed;
->>>>>>> Stashed changes
 }
+}
+

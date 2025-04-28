@@ -1123,7 +1123,7 @@ function setupBillingManagement() {
                 console.error('Error fetching bill details:', error);
                 showNotification('Failed to load bill details', 'error');
             });
-    }l̥
+    }
 
     function closeBillModal() {
         billModal.style.display = 'none';
@@ -1459,30 +1459,74 @@ function setupReports() {
 
 // Settings Management Functions
 function setupSettings() {
-    // Tab switching
-    const tabLinks = document.querySelectorAll('.tab-link');
-    const tabContents = document.querySelectorAll('.tab-content');
+    console.log('Initializing settings...');
     
+    // Get tab elements with proper nesting
+    const tabLinks = document.querySelectorAll('.settings-tabs .tab-nav .tab-link');
+    const tabContents = document.querySelectorAll('.settings-tabs .tab-content');
+    
+    console.log(`Found ${tabLinks.length} tabs and ${tabContents.length} contents`);
+
+    // Add click handlers to each tab
     tabLinks.forEach(link => {
-        link.addEventListener('click', function() {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
             const tabId = this.getAttribute('data-tab');
+            console.log(`Clicked tab: ${tabId}`);
             
-            // Update active tab
-            tabLinks.forEach(tab => tab.classList.remove('active'));
+            // Remove active class from all tabs
+            tabLinks.forEach(tab => {
+                tab.classList.remove('active');
+                tab.setAttribute('aria-selected', 'false');
+            });
+            
+            // Add active class to clicked tab
             this.classList.add('active');
+            this.setAttribute('aria-selected', 'true');
             
-            // Show corresponding content
-            tabContents.forEach(content => content.classList.remove('active'));
-            document.getElementById(`${tabId}-tab`).classList.add('active');
+            // Hide all content
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                content.setAttribute('aria-hidden', 'true');
+            });
+            
+            // Show the selected content - FIXED: Match the tab content ID pattern in your HTML
+            const activeContent = document.getElementById(`${tabId}-tab`);
+            if (activeContent) {
+                activeContent.classList.add('active');
+                activeContent.setAttribute('aria-hidden', 'false');
+                console.log(`Showing content for ${tabId}`);
+                
+                // Load content only when tab is activated
+                switch(tabId) {
+                    case 'general':
+                        loadGeneralSettings();
+                        break;
+                    case 'room-types':
+                        setupRoomTypeManagement();
+                        break;
+                    case 'taxes':
+                        setupTaxSettings();
+                        break;
+                    case 'users':
+                        setupUserManagement();
+                        break;
+                    case 'notifications':
+                        setupNotificationSettings();
+                        break;
+                }
+            } else {
+                console.error(`Content not found for tab: ${tabId}`);
+            }
         });
     });
-    
-    // Load all settings components
-    loadGeneralSettings();
-    setupRoomTypeManagement();
-    setupTaxSettings();
-    setupUserManagement();
-    setupNotificationSettings();
+
+    // Activate the first tab by default if none are active
+    const activeTab = document.querySelector('.settings-tabs .tab-nav .tab-link.active');
+    if (!activeTab && tabLinks.length > 0) {
+        tabLinks[0].click();
+    }
+
     
     // Form submission handlers
     document.getElementById('general-settings-form')?.addEventListener('submit', saveGeneralSettings);
@@ -2352,6 +2396,7 @@ function init() {
     setupBillingManagement(); // Add this line
     setupReports();
     setupSettings();
+
 }
     // Initialize the app
     init();
