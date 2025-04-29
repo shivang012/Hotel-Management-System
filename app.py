@@ -18,7 +18,7 @@ CORS(app)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'  # Update with your MySQL username
-app.config['MYSQL_PASSWORD'] = 'tithi2002'  # Update with your MySQL password
+app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
@@ -1649,92 +1649,115 @@ def get_revenue_report():
         cur.close()
 
 # API Routes for Services
+# GET all services
 @app.route('/api/services', methods=['GET'])
 def get_services():
     if 'logged_in' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    search = request.args.get('search', '')
-    status = request.args.get('status', '')
-    service_type = request.args.get('type', '')
-
     cur = mysql.connection.cursor()
     try:
-        query = "SELECT * FROM services WHERE 1=1"
-        params = []
-        
-        if search:
-            query += " AND (name LIKE %s OR description LIKE %s)"
-            params.extend([f"%{search}%", f"%{search}%"])
-        
-        if status:
-            query += " AND status = %s"
-            params.append(status)
-            
-        if service_type:
-            query += " AND type = %s"
-            params.append(service_type)
-            
-        query += " ORDER BY name"
-        
-        cur.execute(query, tuple(params))
+        cur.execute("SELECT * FROM services ORDER BY name")
         services = cur.fetchall()
-        return jsonify(services)
+        
+        # Convert to list of dictionaries
+        services_list = []
+        for service in services:
+            service_dict = {
+                'name': service['name'],
+                'type': service['type'],
+                'price': float(service['price']),
+                'status': service['status'],
+                'description': service['description']
+            }
+            services_list.append(service_dict)
+            
+        return jsonify(services_list)
     except Exception as e:
         app.logger.error(f"Error fetching services: {str(e)}")
         return jsonify({'error': 'Database error'}), 500
     finally:
         cur.close()
 
-@app.route('/api/services', methods=['POST'])
-def create_service():
+# UPDATE service by name
+@app.route('/api/services', methods=['PUT'])
+def update_service():
     if 'logged_in' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-
-    required_fields = ['name', 'type', 'price']
-    for field in required_fields:
-        if field not in data or not str(data[field]).strip():
-            return jsonify({'error': f'Missing required field: {field}'}), 400
-
-    try:
-        price = float(data['price'])
-        if price <= 0:
-            return jsonify({'error': 'Price must be positive'}), 400
-    except (ValueError, TypeError):
-        return jsonify({'error': 'Invalid price format'}), 400
-
-    service_data = {
-        'name': data['name'].strip(),
-        'type': data['type'],
-        'price': price,
-        'status': data.get('status', 'active'),
-        'description': data.get('description', '').strip()
-    }
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Service name is required'}), 400
 
     cur = mysql.connection.cursor()
     try:
-        cur.execute("""
-            INSERT INTO services (name, type, price, status, description)
-            VALUES (%(name)s, %(type)s, %(price)s, %(status)s, %(description)s)
-        """, service_data)
+        # Check if service exists
+        cur.execute("SELECT name FROM services WHERE name = %s", (data['name'],))
+        if not cur.fetchone():
+            return jsonify({'error': 'Service not found'}), 404
+
+        # Build update query
+        updates = []
+        params = {'name': data['name']}
+        
+        if 'type' in data:
+            updates.append("type = %(type)s")
+            params['type'] = data['type']
+            
+        if 'price' in data:
+            try:
+                price = float(data['price'])
+                updates.append("price = %(price)s")
+                params['price'] = price
+            except ValueError:
+                return jsonify({'error': 'Invalid price'}), 400
+                
+        if 'status' in data:
+            updates.append("status = %(status)s")
+            params['status'] = data['status']
+            
+        if 'description' in data:
+            updates.append("description = %(description)s")
+            params['description'] = data['description']
+            
+        if not updates:
+            return jsonify({'error': 'No fields to update'}), 400
+            
+        query = f"UPDATE services SET {', '.join(updates)} WHERE name = %(name)s"
+        cur.execute(query, params)
         mysql.connection.commit()
         
-        cur.execute("SELECT * FROM services WHERE id = %s", (cur.lastrowid,))
-        new_service = cur.fetchone()
-        
-        return jsonify({
-            'success': True,
-            'service': new_service,
-            'message': 'Service created successfully'
-        }), 201
+        return jsonify({'success': True, 'message': 'Service updated'})
     except Exception as e:
         mysql.connection.rollback()
-        app.logger.error(f"Error creating service: {str(e)}")
-        return jsonify({'error': 'Failed to create service'}), 500
+        app.logger.error(f"Error updating service: {str(e)}")
+        return jsonify({'error': 'Database error'}), 500
+    finally:
+        cur.close()
+
+# DELETE service by name
+@app.route('/api/services', methods=['DELETE'])
+def delete_service():
+    if 'logged_in' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    service_name = request.args.get('name')
+    if not service_name:
+        return jsonify({'error': 'Service name is required'}), 400
+
+    cur = mysql.connection.cursor()
+    try:
+        cur.execute("DELETE FROM services WHERE name = %s", (service_name,))
+        mysql.connection.commit()
+        
+        if cur.rowcount == 0:
+            return jsonify({'error': 'Service not found'}), 404
+            
+        return jsonify({'success': True, 'message': 'Service deleted'})
+    except Exception as e:
+        mysql.connection.rollback()
+        app.logger.error(f"Error deleting service: {str(e)}")
+        return jsonify({'error': 'Database error'}), 500
     finally:
         cur.close()
 

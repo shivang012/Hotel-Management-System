@@ -758,6 +758,9 @@ function setupServiceManagement() {
     document.querySelectorAll('#service-modal .close').forEach(btn => 
         btn.addEventListener('click', closeServiceModal));
 
+    // Track original service name for edits
+    let originalServiceName = '';
+
     // Load initial services
     loadServices();
 
@@ -803,10 +806,10 @@ function setupServiceManagement() {
                 <td>${service.price.toLocaleString('en-US', {style:'currency', currency:'USD'})}</td>
                 <td><span class="status ${service.status}">${service.status.charAt(0).toUpperCase() + service.status.slice(1)}</span></td>
                 <td>
-                    <button class="btn-action edit-service" data-id="${service.id}">
+                    <button class="btn-action edit-service" data-name="${service.name}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn-action delete-service" data-id="${service.id}">
+                    <button class="btn-action delete-service" data-name="${service.name}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -816,11 +819,11 @@ function setupServiceManagement() {
 
         // Add event listeners to action buttons
         document.querySelectorAll('.edit-service').forEach(btn => {
-            btn.addEventListener('click', () => editService(btn.dataset.id));
+            btn.addEventListener('click', () => editService(btn.dataset.name));
         });
 
         document.querySelectorAll('.delete-service').forEach(btn => {
-            btn.addEventListener('click', () => deleteService(btn.dataset.id));
+            btn.addEventListener('click', () => deleteService(btn.dataset.name));
         });
     }
 
@@ -838,6 +841,7 @@ function setupServiceManagement() {
     function openServiceModal() {
         document.getElementById('service-modal-title').textContent = 'New Service';
         document.getElementById('service-id').value = '';
+        originalServiceName = '';
         serviceForm.reset();
         serviceModal.style.display = 'block';
     }
@@ -846,20 +850,23 @@ function setupServiceManagement() {
         serviceModal.style.display = 'none';
     }
 
-    function editService(serviceId) {
-        fetch(`/api/services/${serviceId}`)
+    function editService(serviceName) {
+        fetch(`/api/services?name=${encodeURIComponent(serviceName)}`)
             .then(response => {
                 if (!response.ok) throw new Error('Failed to fetch service');
                 return response.json();
             })
-            .then(service => {
+            .then(services => {
+                if (services.length === 0) throw new Error('Service not found');
+                const service = services[0];
+                
                 document.getElementById('service-modal-title').textContent = 'Edit Service';
-                document.getElementById('service-id').value = service.id;
                 document.getElementById('service-name').value = service.name;
                 document.getElementById('service-type').value = service.type;
                 document.getElementById('service-price').value = service.price;
                 document.getElementById('service-status').value = service.status;
                 document.getElementById('service-description').value = service.description || '';
+                originalServiceName = service.name;
                 serviceModal.style.display = 'block';
             })
             .catch(error => {
@@ -871,7 +878,6 @@ function setupServiceManagement() {
     function handleServiceFormSubmit(e) {
         e.preventDefault();
         
-        const serviceId = document.getElementById('service-id').value;
         const formData = new FormData(serviceForm);
         const price = parseFloat(formData.get('price'));
         
@@ -888,8 +894,14 @@ function setupServiceManagement() {
             description: formData.get('description').trim()
         };
 
-        const method = serviceId ? 'PUT' : 'POST';
-        const url = serviceId ? `/api/services/${serviceId}` : '/api/services';
+        const isEdit = originalServiceName !== '';
+        const method = isEdit ? 'PUT' : 'POST';
+        const url = '/api/services';
+
+        // For edits, include the original name in the data
+        if (isEdit) {
+            serviceData.originalName = originalServiceName;
+        }
 
         fetch(url, {
             method: method,
@@ -905,7 +917,7 @@ function setupServiceManagement() {
         .then(data => {
             closeServiceModal();
             loadServices();
-            showNotification(data.message || (serviceId ? 'Service updated' : 'Service created'));
+            showNotification(data.message || (isEdit ? 'Service updated' : 'Service created'));
         })
         .catch(error => {
             console.error('Error saving service:', error);
@@ -913,10 +925,12 @@ function setupServiceManagement() {
         });
     }
 
-    function deleteService(serviceId) {
+    function deleteService(serviceName) {
         if (!confirm('Are you sure you want to delete this service?')) return;
         
-        fetch(`/api/services/${serviceId}`, { method: 'DELETE' })
+        fetch(`/api/services?name=${encodeURIComponent(serviceName)}`, { 
+            method: 'DELETE' 
+        })
             .then(response => {
                 if (!response.ok) return response.json().then(err => { throw new Error(err.error); });
                 return response.json();
