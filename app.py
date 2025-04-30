@@ -18,7 +18,7 @@ CORS(app)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'  # Update with your MySQL username
-app.config['MYSQL_PASSWORD'] = 'root'  # Update with your MySQL password
+app.config['MYSQL_PASSWORD'] = 'tithi2002'  # Update with your MySQL password
 app.config['MYSQL_DB'] = 'hotel_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 

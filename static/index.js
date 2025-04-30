@@ -482,18 +482,21 @@ function setupGuestManagement() {
     
     // Only proceed if guest management elements exist
     if (!guestTableBody) return;
-    
     // Event Listeners
-    newGuestBtn.addEventListener('click', openGuestModal);
-    cancelGuestBtn.addEventListener('click', closeGuestModal);
-    closeGuestDetailsBtn.addEventListener('click', closeGuestDetailsModal);
-    guestForm.addEventListener('submit', handleGuestFormSubmit);
-    if (searchGuestsBtn) searchGuestsBtn.addEventListener('click', searchGuests);
-    if (guestSearch) guestSearch.addEventListener('keypress', function(e) {
+newGuestBtn.addEventListener('click', openGuestModal);
+cancelGuestBtn.addEventListener('click', closeGuestModal);
+closeGuestDetailsBtn.addEventListener('click', closeGuestDetailsModal);
+guestForm.addEventListener('submit', handleGuestFormSubmit);
+
+if (searchGuestsBtn) searchGuestsBtn.addEventListener('click', searchGuests);
+if (guestSearch) {
+    guestSearch.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') searchGuests();
     });
+}
+if (guestFilter) {
     guestFilter.addEventListener('change', filterGuests);
-    
+}
     // Load initial guests
     loadGuests();
     
@@ -623,7 +626,7 @@ function setupGuestManagement() {
                             <td>${res.room_type_name}</td>
                             <td>${res.check_in_date}</td>
                             <td>${res.check_out_date}</td>
-                            <td>$${res.total_price.toFixed(2)}</td>
+                            <td>$${Number(res.total_price || 0).toFixed(2)}</td>
                             <td><span class="status ${res.status.toLowerCase().replace(' ', '-')}">${res.status}</span></td>
                         `;
                         reservationsBody.appendChild(row);
@@ -647,17 +650,19 @@ function setupGuestManagement() {
         fetch(`/api/guests/${guestId}`)
             .then(response => response.json())
             .then(guest => {
+                console.log("Guest Data:", guest); // Debugging log
+                
                 document.getElementById('guest-modal-title').textContent = 'Edit Guest';
                 document.getElementById('guest-id').value = guest.id;
-                document.getElementById('guest-name').value = guest.name;
-                document.getElementById('guest-email').value = guest.email;
+                document.getElementById('guest-name').value = guest.name || '';
+                document.getElementById('guest-email').value = guest.email || '';
                 document.getElementById('guest-phone').value = guest.phone || '';
                 document.getElementById('guest-address').value = guest.address || '';
                 document.getElementById('guest-notes').value = guest.notes || '';
                 
-                // Check VIP status (assuming it's stored in notes)
+                // VIP Checkbox Logic
                 const vipCheckbox = document.getElementById('guest-vip');
-                vipCheckbox.checked = guest.notes && guest.notes.toLowerCase().includes('vip');
+                vipCheckbox.checked = guest.notes?.toLowerCase().includes('vip') || false;
                 
                 guestModal.style.display = 'block';
             })
@@ -720,18 +725,9 @@ function setupGuestManagement() {
     }
     
     function filterGuests() {
-        loadGuests(guestSearch.value.trim(), guestFilter.value);
+        const searchTerm = guestSearch ? guestSearch.value.trim() : '';
+        loadGuests(searchTerm, guestFilter.value);
     }
-}
-
-// Update the init function to include guest management setup
-function init() {
-    setupNavigation();
-    renderAvailabilityChart();
-    setupReservationModal();
-    populateReservationsTable();
-    setupDateValidation();
-    setupGuestManagement(); // Add this line
 }
 
 // Service Management Functions
@@ -757,9 +753,6 @@ function setupServiceManagement() {
     window.addEventListener('click', (e) => e.target === serviceModal && closeServiceModal());
     document.querySelectorAll('#service-modal .close').forEach(btn => 
         btn.addEventListener('click', closeServiceModal));
-
-    // Track original service name for edits
-    let originalServiceName = '';
 
     // Load initial services
     loadServices();
@@ -806,10 +799,10 @@ function setupServiceManagement() {
                 <td>${service.price.toLocaleString('en-US', {style:'currency', currency:'USD'})}</td>
                 <td><span class="status ${service.status}">${service.status.charAt(0).toUpperCase() + service.status.slice(1)}</span></td>
                 <td>
-                    <button class="btn-action edit-service" data-name="${service.name}">
+                     <button class="btn-action edit-service" data-name="${service.name}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn-action delete-service" data-name="${service.name}">
+                   <button class="btn-action delete-service" data-name="${service.name}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -859,7 +852,6 @@ function setupServiceManagement() {
             .then(services => {
                 if (services.length === 0) throw new Error('Service not found');
                 const service = services[0];
-                
                 document.getElementById('service-modal-title').textContent = 'Edit Service';
                 document.getElementById('service-name').value = service.name;
                 document.getElementById('service-type').value = service.type;
@@ -897,11 +889,9 @@ function setupServiceManagement() {
         const isEdit = originalServiceName !== '';
         const method = isEdit ? 'PUT' : 'POST';
         const url = '/api/services';
-
-        // For edits, include the original name in the data
         if (isEdit) {
-            serviceData.originalName = originalServiceName;
-        }
+             serviceData.originalName = originalServiceName;
+         }
 
         fetch(url, {
             method: method,
@@ -1644,12 +1634,28 @@ function setupRoomTypeManagement() {
                 tableBody.innerHTML = '';
                 
                 roomTypes.forEach(rt => {
+                    // Handle amenities display - works with both JSON strings and comma-separated strings
+                    let amenitiesDisplay = '';
+                    if (rt.amenities) {
+                        try {
+                            // Try to parse as JSON first
+                            const amenitiesArray = JSON.parse(rt.amenities);
+                            amenitiesDisplay = amenitiesArray.slice(0, 3).join(', ');
+                            if (amenitiesArray.length > 3) amenitiesDisplay += '...';
+                        } catch (e) {
+                            // Fall back to comma-separated string
+                            const amenitiesArray = rt.amenities.split(',');
+                            amenitiesDisplay = amenitiesArray.slice(0, 3).join(', ');
+                            if (amenitiesArray.length > 3) amenitiesDisplay += '...';
+                        }
+                    }
+    
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${rt.name}</td>
                         <td>$${rt.base_price}</td>
                         <td>${rt.room_count || 0}</td>
-                        <td>${rt.amenities ? rt.amenities.split(',').slice(0, 3).join(', ') : ''}${rt.amenities && rt.amenities.split(',').length > 3 ? '...' : ''}</td>
+                        <td>${amenitiesDisplay}</td>
                         <td>
                             <button class="btn-action edit-room-type" data-id="${rt.id}">
                                 <i class="fas fa-edit"></i>
@@ -1673,7 +1679,7 @@ function setupRoomTypeManagement() {
             })
             .catch(error => {
                 console.error('Error loading room types:', error);
-                showNotification('Failed to load room types', error);
+                showNotification('Failed to load room types', 'error');
             });
     }
     
@@ -1698,8 +1704,27 @@ function setupRoomTypeManagement() {
                 document.getElementById('room-type-price').value = roomType.base_price;
                 document.getElementById('room-type-description').value = roomType.description || '';
                 
-                // Check amenities
-                const amenities = roomType.amenities ? JSON.parse(roomType.amenities) : [];
+                 // Bulletproof amenities handling
+            let amenities = [];
+            if (roomType.amenities) {
+                if (Array.isArray(roomType.amenities)) {
+                    // Already an array
+                    amenities = roomType.amenities;
+                } else if (typeof roomType.amenities === 'string') {
+                    try {
+                        // Try to parse as JSON
+                        amenities = JSON.parse(roomType.amenities);
+                        if (!Array.isArray(amenities)) {
+                            // If parsed but not array, treat as comma-separated
+                            amenities = roomType.amenities.split(',').map(a => a.trim());
+                        }
+                    } catch (e) {
+                        // If JSON parse fails, treat as comma-separated string
+                        amenities = roomType.amenities.split(',').map(a => a.trim());
+                    }
+                }
+            }
+                
                 document.querySelectorAll('#amenities-container input[type="checkbox"]').forEach(checkbox => {
                     checkbox.checked = amenities.includes(checkbox.value);
                 });
@@ -1723,7 +1748,7 @@ function setupRoomTypeManagement() {
             name: formData.get('name'),
             base_price: formData.get('base_price'),
             description: formData.get('description'),
-            amenities: checkedAmenities
+            amenities: JSON.stringify(checkedAmenities)
         };
         
         const id = document.getElementById('room-type-id').value;
