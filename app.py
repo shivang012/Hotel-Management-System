@@ -2133,17 +2133,18 @@ def save_general_settings():
     if 'logged_in' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data = request.json
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-
-    required_fields = ['hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'currency']
-    for field in required_fields:
-        if field not in data:
-            return jsonify({'error': f'Missing required field: {field}'}), 400
-
-    cur = mysql.connection.cursor()
     try:
+        data = request.get_json()  # Using get_json() is more explicit
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        print("Received data:", data)  # Debug print
+
+        required_fields = ['hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'currency']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
         setting_value = json.dumps({
             'hotel_name': data['hotel_name'],
             'hotel_address': data['hotel_address'],
@@ -2154,20 +2155,28 @@ def save_general_settings():
             'checkin_time': data.get('checkin_time', '14:00'),
             'checkout_time': data.get('checkout_time', '12:00')
         })
-        
-        cur.execute("""
-            INSERT INTO settings (setting_type, setting_value)
-            VALUES ('general', %s)
-            ON DUPLICATE KEY UPDATE setting_value = %s
-        """, (setting_value, setting_value))
-        
-        mysql.connection.commit()
-        return jsonify({'success': True, 'message': 'General settings saved'})
+
+        print("Setting value to be saved:", setting_value)  # Debug print
+
+        cur = mysql.connection.cursor()
+        try:
+            cur.execute("""
+                INSERT INTO settings (setting_type, setting_value)
+                VALUES ('general', %s)
+                ON DUPLICATE KEY UPDATE setting_value = %s
+            """, (setting_value, setting_value))
+            
+            mysql.connection.commit()
+            return jsonify({'success': True, 'message': 'General settings saved'})
+        except Exception as e:
+            mysql.connection.rollback()
+            print("Database error:", str(e))  # Debug print
+            return jsonify({'error': 'Database operation failed', 'details': str(e)}), 500
+        finally:
+            cur.close()
     except Exception as e:
-        mysql.connection.rollback()
-        return jsonify({'error': str(e)}), 500
-    finally:
-        cur.close()
+        print("Endpoint error:", str(e))  # Debug print
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/api/settings/taxes', methods=['GET'])
 def get_tax_settings():
