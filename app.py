@@ -2228,10 +2228,10 @@ def save_tax_settings():
         })
         
         cur.execute("""
-            INSERT INTO settings (setting_type, setting_value)
-            VALUES ('taxes', %s)
-            ON DUPLICATE KEY UPDATE setting_value = %s
-        """, (setting_value, setting_value))
+    INSERT INTO settings (setting_type, setting_key, setting_value)
+    VALUES ('taxes', 'tax_settings', %s)
+    ON DUPLICATE KEY UPDATE setting_value = %s
+""", (setting_value, setting_value))
         
         mysql.connection.commit()
         return jsonify({'success': True, 'message': 'Tax settings saved'})

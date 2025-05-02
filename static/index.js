@@ -1819,33 +1819,39 @@ function saveTaxSettings(e) {
     
     const formData = new FormData(e.target);
     const settings = {
-        tax_rate: formData.get('tax_rate'),
-        service_fee: formData.get('service_fee'),
-        reservation_fee: formData.get('reservation_fee'),
-        city_tax: formData.get('city_tax'),
+        tax_rate: parseFloat(formData.get('tax_rate')) || 0,
+        service_fee: parseFloat(formData.get('service_fee')) || 0,
+        reservation_fee: parseFloat(formData.get('reservation_fee')) || 0,
+        city_tax: parseFloat(formData.get('city_tax')) || 0,
         tax_inclusive: formData.get('tax_inclusive') === 'on'
     };
+    
+    console.log('Sending tax settings:', settings);  // Add this for debugging
     
     fetch('/api/settings/taxes', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + localStorage.getItem('auth_token')  // If using auth
         },
         body: JSON.stringify(settings)
     })
     .then(response => {
-        if (!response.ok) throw new Error('Failed to save tax settings');
+        if (!response.ok) {
+            // Try to get more error details from the response
+            return response.text().then(text => { throw new Error(text) });
+        }
         return response.json();
     })
     .then(data => {
         showNotification('Tax settings saved successfully');
     })
     .catch(error => {
-        console.error('Error saving tax settings:', error);
-        showNotification('Failed to save tax settings', 'error');
+        console.error('Error saving tax settings:', error.message);  // More detailed error
+        showNotification(`Failed to save tax settings: ${error.message}`, 'error');
     });
 }
-
+// User Management Functions for settings tab 
 function setupUserManagement() {
     const newUserBtn = document.getElementById('new-user-btn');
     const userModal = document.getElementById('user-modal');
@@ -1862,18 +1868,31 @@ function setupUserManagement() {
     
     function loadUsers() {
         fetch('/api/users')
-            .then(response => response.json())
-            .then(users => {
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Ensure we're working with an array
+                const users = Array.isArray(data) ? data : (data.users || []);
+                
                 const tableBody = document.getElementById('users-table-body');
                 tableBody.innerHTML = '';
+                
+                if (users.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="7">No users found</td></tr>';
+                    return;
+                }
                 
                 users.forEach(user => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${user.username}</td>
-                        <td>${user.first_name} ${user.last_name}</td>
-                        <td>${user.email}</td>
-                        <td>${user.role}</td>
+                        <td>${user.username || ''}</td>
+                        <td>${user.first_name || ''} ${user.last_name || ''}</td>
+                        <td>${user.email || ''}</td>
+                        <td>${user.role || ''}</td>
                         <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
                         <td><span class="status ${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
                         <td>
@@ -1902,6 +1921,10 @@ function setupUserManagement() {
             .catch(error => {
                 console.error('Error loading users:', error);
                 showNotification('Failed to load users', 'error');
+                
+                // Display error in table
+                const tableBody = document.getElementById('users-table-body');
+                tableBody.innerHTML = '<tr><td colspan="7">Error loading users</td></tr>';
             });
     }
     
