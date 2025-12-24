@@ -54,7 +54,6 @@ app/
 - **Billing**: `/api/billing/invoices` - Invoice and payment handling
 - **Dashboard**: `/api/dashboard/stats` - Real-time analytics
 
-For complete documentation, see the main [README.md](../README.md) file.
 ```bash
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
