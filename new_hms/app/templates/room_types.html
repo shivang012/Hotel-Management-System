@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+  <h1>Room Types</h1>
+  <button class="btn btn-primary" onclick="showAddRoomTypeForm()">Add Room Type</button>
+</div>
+
+<div class="table-container">
+  <table class="data-table" id="roomTypesTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Base Price</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="roomTypesBody">
+      <tr><td colspan="4">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Room Type Modal -->
+<div id="addRoomTypeModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span class="close" onclick="hideAddRoomTypeForm()">&times;</span>
+    <h2>Add New Room Type</h2>
+    <form id="addRoomTypeForm">
+      <label>Name: <input type="text" id="roomTypeName" required></label>
+      <label>Description: <textarea id="roomTypeDescription"></textarea></label>
+      <label>Base Price: <input type="number" step="0.01" id="roomTypePrice" required></label>
+      <button type="submit">Add Room Type</button>
+      <button type="button" onclick="hideAddRoomTypeForm()">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  loadRoomTypes();
+  
+  // Add form submission handler
+  document.getElementById('addRoomTypeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    createRoomType();
+  });
+});
+
+function loadRoomTypes() {
+  fetch('/api/room-types')
+    .then(response => response.json())
+    .then(data => {
+      const tbody = document.getElementById('roomTypesBody');
+      tbody.innerHTML = '';
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4">No room types found</td></tr>';
+      } else {
+        data.forEach(type => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${type.name}</td>
+            <td>${type.description || ''}</td>
+            <td>$${type.base_price}</td>
+            <td>
+              <button onclick="editRoomType(${type.id})">Edit</button>
+              <button onclick="deleteRoomType(${type.id})">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+    })
+    .catch(error => {
+      console.error('Error loading room types:', error);
+      document.getElementById('roomTypesBody').innerHTML = '<tr><td colspan="4">Error loading room types</td></tr>';
+    });
+}
+
+function createRoomType() {
+  const data = {
+    name: document.getElementById('roomTypeName').value,
+    description: document.getElementById('roomTypeDescription').value,
+    base_price: parseFloat(document.getElementById('roomTypePrice').value)
+  };
+  
+  fetch('/api/room-types', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      hideAddRoomTypeForm();
+      loadRoomTypes();
+      alert('Room type created successfully!');
+    } else {
+      alert('Error: ' + (result.error || 'Unknown error'));
+    }
+  })
+  .catch(error => {
+    console.error('Error creating room type:', error);
+    alert('Error creating room type');
+  });
+}
+
+function showAddRoomTypeForm() {
+  document.getElementById('addRoomTypeModal').style.display = 'block';
+}
+
+function hideAddRoomTypeForm() {
+  document.getElementById('addRoomTypeModal').style.display = 'none';
+  document.getElementById('addRoomTypeForm').reset();
+}
+
+function editRoomType(id) {
+  alert('Edit room type functionality to be implemented');
+}
+
+function deleteRoomType(id) {
+  if (confirm('Are you sure you want to delete this room type?')) {
+    alert('Delete room type functionality to be implemented');
+  }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('addRoomTypeModal');
+  if (event.target == modal) {
+    hideAddRoomTypeForm();
+  }
+}
+</script>
+{% endblock %}

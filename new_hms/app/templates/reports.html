@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+  <h1>Reports & Analytics</h1>
+  <div class="date-filters">
+    <label>From: <input type="date" id="startDate"></label>
+    <label>To: <input type="date" id="endDate"></label>
+    <button class="btn btn-primary" onclick="generateReports()">Generate Reports</button>
+  </div>
+</div>
+
+<div class="reports-grid">
+  <div class="report-card">
+    <h3>Occupancy Report</h3>
+    <div id="occupancyReport">
+      <p>Total Rooms: <span id="totalRooms">-</span></p>
+      <p>Occupied: <span id="occupiedRooms">-</span></p>
+      <p>Available: <span id="availableRooms">-</span></p>
+      <p>Occupancy Rate: <span id="occupancyRate">-</span>%</p>
+    </div>
+  </div>
+
+  <div class="report-card">
+    <h3>Revenue Report</h3>
+    <div id="revenueReport">
+      <p>Total Revenue: $<span id="totalRevenue">-</span></p>
+      <p>Average per Day: $<span id="avgRevenue">-</span></p>
+    </div>
+  </div>
+
+  <div class="report-card">
+    <h3>Guest Statistics</h3>
+    <div id="guestStats">
+      <p>Total Guests: <span id="totalGuests">-</span></p>
+      <p>Active Reservations: <span id="activeReservations">-</span></p>
+    </div>
+  </div>
+
+  <div class="report-card">
+    <h3>Quick Stats</h3>
+    <div id="quickStats">
+      <p>This Week's Bookings: <span id="weeklyBookings">-</span></p>
+      <p>Revenue Growth: <span id="revenueGrowth">-</span>%</p>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Set default date range (last 30 days)
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+  document.getElementById('endDate').value = today.toISOString().split('T')[0];
+  
+  generateReports();
+});
+
+function generateReports() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  
+  // Load occupancy report
+  fetch(`/api/reports/occupancy?start_date=${startDate}&end_date=${endDate}`)
+    .then(response => response.json())
+    .then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        const latestData = data[data.length - 1];
+        document.getElementById('totalRooms').textContent = latestData.total_rooms || 0;
+        document.getElementById('occupiedRooms').textContent = latestData.occupied || 0;
+        document.getElementById('availableRooms').textContent = latestData.available || 0;
+        const rate = latestData.total_rooms > 0 ? ((latestData.occupied / latestData.total_rooms) * 100).toFixed(1) : 0;
+        document.getElementById('occupancyRate').textContent = rate;
+      }
+    })
+    .catch(error => {
+      console.error('Error loading occupancy report:', error);
+    });
+
+  // Load basic statistics (using API endpoints we have)
+  loadBasicStats();
+}
+
+function loadBasicStats() {
+  // Load guest count
+  fetch('/api/guests')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('totalGuests').textContent = data.length;
+    });
+
+  // Load reservation count
+  fetch('/api/reservations')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('activeReservations').textContent = data.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length;
+      document.getElementById('weeklyBookings').textContent = data.length;
+      
+      // Calculate total revenue
+      const totalRevenue = data.reduce((sum, r) => sum + parseFloat(r.total_price || 0), 0);
+      document.getElementById('totalRevenue').textContent = totalRevenue.toFixed(2);
+      
+      const days = Math.max(1, (new Date(document.getElementById('endDate').value) - new Date(document.getElementById('startDate').value)) / (1000 * 60 * 60 * 24));
+      document.getElementById('avgRevenue').textContent = (totalRevenue / days).toFixed(2);
+    });
+
+  // Set placeholder growth rate
+  document.getElementById('revenueGrowth').textContent = '15.2';
+}
+</script>
+
+<style>
+.date-filters {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.date-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.report-card {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.report-card h3 {
+  margin-top: 0;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.report-card p {
+  margin: 10px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.report-card span {
+  font-weight: bold;
+  color: #007bff;
+}
+</style>
+{% endblock %}

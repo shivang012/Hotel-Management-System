@@ -1,0 +1,780 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header fade-in">
+  <div>
+    <h1><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+    <p class="page-description">Real-time overview of your hotel operations and performance</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-primary" onclick="refreshDashboard()">
+      <i class="fas fa-sync-alt"></i> Refresh Data
+    </button>
+  </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid stats">
+  <div class="card">
+    <h3><i class="fas fa-bed"></i> Total Rooms</h3>
+    <p id="total-rooms">{{ stats.total_rooms }}</p>
+  </div>
+  <div class="card">
+    <h3><i class="fas fa-user"></i> Occupied</h3>
+    <p id="occupied-rooms">{{ stats.occupied_rooms }}</p>
+  </div>
+  <div class="card">
+    <h3><i class="fas fa-check-circle"></i> Available</h3>
+    <p id="available-rooms">{{ stats.available_rooms }}</p>
+  </div>
+  <div class="card">
+    <h3><i class="fas fa-tools"></i> Maintenance</h3>
+    <p id="maintenance-rooms">{{ stats.maintenance_rooms }}</p>
+  </div>
+</div>
+
+<!-- Quick Action Widgets -->
+<section class="quick-actions panel">
+  <h2>Quick Actions</h2>
+  <div class="action-grid">
+    <button class="action-btn" onclick="quickCheckIn()">
+      <span class="action-icon">🏨</span>
+      <span>Quick Check-In</span>
+    </button>
+    <button class="action-btn" onclick="quickCheckOut()">
+      <span class="action-icon">🚪</span>
+      <span>Quick Check-Out</span>
+    </button>
+    <button class="action-btn" onclick="addNewGuest()">
+      <span class="action-icon">👤</span>
+      <span>Add Guest</span>
+    </button>
+    <button class="action-btn" onclick="addNewReservation()">
+      <span class="action-icon">📅</span>
+      <span>New Reservation</span>
+    </button>
+    <button class="action-btn" onclick="markRoomMaintenance()">
+      <span class="action-icon">🔧</span>
+      <span>Room Maintenance</span>
+    </button>
+    <button class="action-btn" onclick="generateReport()">
+      <span class="action-icon">📊</span>
+      <span>Generate Report</span>
+    </button>
+    <button class="action-btn" onclick="createInvoice()">
+      <span class="action-icon">💰</span>
+      <span>Create Invoice</span>
+    </button>
+    <button class="action-btn" onclick="viewPayments()">
+      <span class="action-icon">💳</span>
+      <span>View Payments</span>
+    </button>
+  </div>
+</section>
+
+<!-- Charts Section -->
+<div class="charts-grid">
+  <!-- Room Status Pie Chart -->
+  <section class="chart-panel panel">
+    <h2>Room Status Distribution</h2>
+    <canvas id="roomStatusChart" width="200" height="200"></canvas>
+  </section>
+
+  <!-- Revenue Breakdown Pie Chart -->
+  <section class="chart-panel panel">
+    <h2>Revenue by Room Type</h2>
+    <canvas id="revenueChart" width="200" height="200"></canvas>
+  </section>
+
+  <!-- Occupancy Trend -->
+  <section class="chart-panel panel wide">
+    <h2>Quick Occupancy (Last 7 Days)</h2>
+    <canvas id="mini-occupancy" height="200"></canvas>
+  </section>
+</div>
+
+<!-- Social Media Monitor -->
+<section class="social-media panel">
+  <h2>Social Media Mentions</h2>
+  <div class="social-grid">
+    <div class="social-card">
+      <h4>Recent Mentions</h4>
+      <div id="social-mentions">
+        <div class="mention">
+          <span class="platform twitter">🐦</span>
+          <span class="content">"Great stay at the hotel! Excellent service..."</span>
+          <span class="time">2 hours ago</span>
+        </div>
+        <div class="mention">
+          <span class="platform facebook">📘</span>
+          <span class="content">"Amazing breakfast and friendly staff..."</span>
+          <span class="time">5 hours ago</span>
+        </div>
+        <div class="mention">
+          <span class="platform instagram">📷</span>
+          <span class="content">"Beautiful room with city view! #hotel"</span>
+          <span class="time">1 day ago</span>
+        </div>
+      </div>
+    </div>
+    <div class="social-stats">
+      <h4>Social Stats (This Week)</h4>
+      <div class="stat-item">
+        <span>Total Mentions:</span>
+        <span id="total-mentions">47</span>
+      </div>
+      <div class="stat-item">
+        <span>Positive Sentiment:</span>
+        <span id="positive-sentiment" class="positive">85%</span>
+      </div>
+      <div class="stat-item">
+        <span>Response Rate:</span>
+        <span id="response-rate">92%</span>
+      </div>
+      <div class="stat-item">
+        <span>Average Rating:</span>
+        <span id="avg-rating">4.6/5.0</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Recent Activity Feed -->
+<section class="activity-feed panel">
+  <h2>Recent Activity</h2>
+  <div id="activity-list">
+    <div class="activity-item">
+      <span class="activity-icon">🏨</span>
+      <span class="activity-text">New reservation for Room 203 - John Smith</span>
+      <span class="activity-time">5 min ago</span>
+    </div>
+    <div class="activity-item">
+      <span class="activity-icon">💳</span>
+      <span class="activity-text">Payment received - $350.00 for Invoice #1001</span>
+      <span class="activity-time">12 min ago</span>
+    </div>
+    <div class="activity-item">
+      <span class="activity-icon">🚪</span>
+      <span class="activity-text">Guest checked out - Room 105</span>
+      <span class="activity-time">25 min ago</span>
+    </div>
+  </div>
+</section>
+
+<style>
+/* Quick Actions Styles */
+.quick-actions {
+  margin: 15px 0;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--primary-color);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.action-btn:hover::before {
+  transform: scaleX(1);
+}
+
+.action-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+  background: var(--bg-secondary);
+}
+
+.action-btn:active {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-icon {
+  font-size: 1.75rem;
+  margin-bottom: 8px;
+  color: var(--primary-color);
+  transition: var(--transition);
+}
+
+.action-btn:hover .action-icon {
+  transform: scale(1.1);
+  color: var(--primary-dark);
+}
+
+/* Animation Classes */
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Charts Grid - Compact Layout */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 15px;
+  margin: 15px 0;
+  max-height: 300px;
+}
+
+.chart-panel {
+  text-align: center;
+  padding: 10px;
+}
+
+.chart-panel h2 {
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+
+.chart-panel canvas {
+  max-width: 100%;
+  max-height: 200px !important;
+}
+
+.chart-panel.wide {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+
+/* Social Media Styles - Compact */
+.social-media {
+  margin: 15px 0;
+}
+
+.social-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.social-card {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.social-card h4 {
+  margin-bottom: 10px;
+  font-size: 1em;
+}
+
+.mention {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.85em;
+}
+
+.mention:last-child {
+  border-bottom: none;
+}
+
+.platform {
+  font-size: 1em;
+  margin-right: 8px;
+}
+
+.content {
+  flex: 1;
+  margin-right: 8px;
+  font-size: 0.85em;
+}
+
+.time {
+  font-size: 0.75em;
+  color: #666;
+}
+
+.social-stats {
+  background: #f1f3f4;
+  padding: 15px;
+  border-radius: 8px;
+  max-height: 200px;
+}
+
+.social-stats h4 {
+  margin-bottom: 10px;
+  font-size: 1em;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.85em;
+}
+
+.stat-item:last-child {
+  border-bottom: none;
+}
+
+.positive {
+  color: #28a745;
+  font-weight: bold;
+}
+
+/* Activity Feed - Compact */
+.activity-feed {
+  margin: 15px 0;
+}
+
+.activity-feed h2 {
+  font-size: 1.2em;
+  margin-bottom: 10px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.85em;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-icon {
+  font-size: 1em;
+  margin-right: 10px;
+}
+
+.activity-text {
+  flex: 1;
+  margin-right: 10px;
+}
+
+.activity-time {
+  font-size: 0.75em;
+  color: #666;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+    max-height: none;
+  }
+  
+  .chart-panel.wide {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  
+  .social-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
+}
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  margin-top: 15px;
+}
+.social-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.mention {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.mention:last-child {
+  border-bottom: none;
+}
+
+.platform {
+  font-size: 1.2em;
+  margin-right: 10px;
+}
+
+.content {
+  flex: 1;
+  margin-right: 10px;
+  font-size: 0.9em;
+}
+
+.time {
+  font-size: 0.8em;
+  color: #666;
+}
+
+.social-stats {
+  background: #f1f3f4;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.stat-item:last-child {
+  border-bottom: none;
+}
+
+.positive {
+  color: #28a745;
+  font-weight: bold;
+}
+
+/* Activity Feed */
+.activity-feed {
+  margin: 20px 0;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-icon {
+  font-size: 1.2em;
+  margin-right: 12px;
+}
+
+.activity-text {
+  flex: 1;
+  margin-right: 12px;
+}
+
+.activity-time {
+  font-size: 0.8em;
+  color: #666;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .social-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  initializeCharts();
+  startRealTimeUpdates();
+});
+
+function initializeCharts() {
+  // Room Status Pie Chart
+  const roomStatusCtx = document.getElementById('roomStatusChart').getContext('2d');
+  const roomStatusChart = new Chart(roomStatusCtx, {
+    type: 'pie',
+    data: {
+      labels: ['Available', 'Occupied', 'Maintenance', 'Out of Order'],
+      datasets: [{
+        data: [{{ stats.available_rooms }}, {{ stats.occupied_rooms }}, {{ stats.maintenance_rooms }}, 0],
+        backgroundColor: [
+          '#28a745', // Green for Available
+          '#dc3545', // Red for Occupied
+          '#ffc107', // Yellow for Maintenance
+          '#6c757d'  // Gray for Out of Order
+        ],
+        borderWidth: 1,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: {
+              size: 10
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+
+  // Revenue Breakdown Pie Chart
+  const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+  const revenueChart = new Chart(revenueCtx, {
+    type: 'pie',
+    data: {
+      labels: ['Standard Rooms', 'Deluxe Rooms', 'Executive Suites', 'Presidential Suite'],
+      datasets: [{
+        data: [45, 30, 20, 5], // Percentage breakdown
+        backgroundColor: [
+          '#007bff',
+          '#17a2b8',
+          '#28a745',
+          '#ffc107'
+        ],
+        borderWidth: 1,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: {
+              size: 10
+            },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+
+  // Occupancy Trend Line Chart
+  const occupancyCtx = document.getElementById('mini-occupancy').getContext('2d');
+  const occupancyChart = new Chart(occupancyCtx, {
+    type: 'line',
+    data: {
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      datasets: [{
+        label: 'Occupancy Rate (%)',
+        data: [65, 70, 68, 75, 80, 85, 72],
+        borderColor: '#007bff',
+        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 2,
+        pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: {
+            font: {
+              size: 10
+            }
+          }
+        },
+        x: {
+          ticks: {
+            font: {
+              size: 10
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Quick Action Functions
+function quickCheckIn() {
+  window.location.href = '/reservations';
+}
+
+function quickCheckOut() {
+  window.location.href = '/reservations';
+}
+
+function addNewGuest() {
+  window.location.href = '/guests';
+}
+
+function addNewReservation() {
+  window.location.href = '/reservations';
+}
+
+function markRoomMaintenance() {
+  window.location.href = '/rooms';
+}
+
+function generateReport() {
+  window.location.href = '/reports';
+}
+
+function createInvoice() {
+  window.location.href = '/billing';
+}
+
+function viewPayments() {
+  window.location.href = '/billing';
+}
+
+// Real-time updates
+function startRealTimeUpdates() {
+  setInterval(updateDashboardData, 30000); // Update every 30 seconds
+  setInterval(updateSocialMentions, 60000); // Update social mentions every minute
+  setInterval(updateActivityFeed, 45000); // Update activity feed every 45 seconds
+}
+
+function refreshDashboard() {
+  // Show loading indicator
+  const refreshBtn = document.querySelector('.btn-primary');
+  const originalText = refreshBtn.innerHTML;
+  refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+  refreshBtn.disabled = true;
+  
+  // Update all data
+  updateDashboardData();
+  updateSocialMentions();
+  updateActivityFeed();
+  
+  // Reset button after 2 seconds
+  setTimeout(() => {
+    refreshBtn.innerHTML = originalText;
+    refreshBtn.disabled = false;
+  }, 2000);
+}
+
+function updateDashboardData() {
+  fetch('/api/dashboard/stats')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('total-rooms').textContent = data.total_rooms;
+      document.getElementById('occupied-rooms').textContent = data.occupied_rooms;
+      document.getElementById('available-rooms').textContent = data.available_rooms;
+      document.getElementById('maintenance-rooms').textContent = data.maintenance_rooms;
+    })
+    .catch(error => console.error('Error updating dashboard data:', error));
+}
+
+function updateSocialMentions() {
+  // Simulate social media mentions update
+  const mentions = [
+    {
+      platform: 'twitter',
+      icon: '🐦',
+      content: 'Excellent service at the hotel! Highly recommend...',
+      time: 'Just now'
+    },
+    {
+      platform: 'facebook',
+      icon: '📘',
+      content: 'Had a wonderful stay. The staff was amazing...',
+      time: '15 min ago'
+    },
+    {
+      platform: 'instagram',
+      icon: '📷',
+      content: 'Perfect location and beautiful rooms! #hotel',
+      time: '1 hour ago'
+    }
+  ];
+
+  const mentionsContainer = document.getElementById('social-mentions');
+  mentionsContainer.innerHTML = mentions.map(mention => `
+    <div class="mention">
+      <span class="platform ${mention.platform}">${mention.icon}</span>
+      <span class="content">${mention.content}</span>
+      <span class="time">${mention.time}</span>
+    </div>
+  `).join('');
+
+  // Update social stats with random variations
+  document.getElementById('total-mentions').textContent = Math.floor(Math.random() * 20) + 40;
+  document.getElementById('positive-sentiment').textContent = (Math.random() * 10 + 80).toFixed(1) + '%';
+  document.getElementById('response-rate').textContent = (Math.random() * 8 + 88).toFixed(1) + '%';
+  document.getElementById('avg-rating').textContent = (Math.random() * 0.5 + 4.3).toFixed(1) + '/5.0';
+}
+
+function updateActivityFeed() {
+  const activities = [
+    { icon: '🏨', text: 'New reservation for Room 301 - Sarah Johnson', time: 'Just now' },
+    { icon: '💳', text: 'Payment received - $275.00 for Invoice #1023', time: '8 min ago' },
+    { icon: '🚪', text: 'Guest checked in - Room 210', time: '15 min ago' },
+    { icon: '🔧', text: 'Maintenance completed - Room 405', time: '32 min ago' }
+  ];
+
+  const activityContainer = document.getElementById('activity-list');
+  activityContainer.innerHTML = activities.map(activity => `
+    <div class="activity-item">
+      <span class="activity-icon">${activity.icon}</span>
+      <span class="activity-text">${activity.text}</span>
+      <span class="activity-time">${activity.time}</span>
+    </div>
+  `).join('');
+}
+</script>
+{% endblock %}

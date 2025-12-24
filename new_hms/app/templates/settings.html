@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+  <h1>Settings</h1>
+  <button class="btn btn-primary" onclick="saveSettings()">Save All Settings</button>
+</div>
+
+<div class="settings-container">
+  <div class="settings-section">
+    <h3>Hotel Information</h3>
+    <form id="hotelInfoForm">
+      <label>Hotel Name: <input type="text" id="hotelName" name="hotel_name" placeholder="Your Hotel Name"></label>
+      <label>Address: <textarea id="hotelAddress" name="hotel_address" placeholder="Hotel Address"></textarea></label>
+      <label>Phone: <input type="tel" id="hotelPhone" name="hotel_phone" placeholder="+1 234 567 8900"></label>
+      <label>Email: <input type="email" id="hotelEmail" name="hotel_email" placeholder="info@hotel.com"></label>
+    </form>
+  </div>
+
+  <div class="settings-section">
+    <h3>System Settings</h3>
+    <form id="systemSettingsForm">
+      <label>Currency: 
+        <select id="currency" name="currency">
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="INR">INR (₹)</option>
+        </select>
+      </label>
+      <label>Tax Rate (%): <input type="number" step="0.01" id="taxRate" name="tax_rate" placeholder="0.00"></label>
+      <label>Default Check-in Time: <input type="time" id="checkinTime" name="checkin_time" value="15:00"></label>
+      <label>Default Check-out Time: <input type="time" id="checkoutTime" name="checkout_time" value="11:00"></label>
+    </form>
+  </div>
+
+  <div class="settings-section">
+    <h3>Notification Settings</h3>
+    <form id="notificationForm">
+      <label><input type="checkbox" id="emailNotifications" name="email_notifications"> Email Notifications</label>
+      <label><input type="checkbox" id="smsNotifications" name="sms_notifications"> SMS Notifications</label>
+      <label>SMTP Server: <input type="text" id="smtpServer" name="smtp_server" placeholder="smtp.gmail.com"></label>
+      <label>SMTP Port: <input type="number" id="smtpPort" name="smtp_port" placeholder="587"></label>
+    </form>
+  </div>
+
+  <div class="settings-section">
+    <h3>Current Settings</h3>
+    <div id="currentSettings">
+      <p>Loading current settings...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  loadCurrentSettings();
+});
+
+function loadCurrentSettings() {
+  fetch('/api/settings/')
+    .then(response => response.json())
+    .then(data => {
+      const settingsDiv = document.getElementById('currentSettings');
+      settingsDiv.innerHTML = '';
+      
+      if (data.length === 0) {
+        settingsDiv.innerHTML = '<p>No settings configured yet.</p>';
+      } else {
+        data.forEach(setting => {
+          const p = document.createElement('p');
+          p.innerHTML = `<strong>${setting.key}:</strong> ${setting.value}`;
+          settingsDiv.appendChild(p);
+          
+          // Populate form fields if they exist
+          const element = document.getElementById(setting.key) || 
+                         document.querySelector(`[name="${setting.key}"]`);
+          if (element) {
+            if (element.type === 'checkbox') {
+              element.checked = setting.value === 'true' || setting.value === '1';
+            } else {
+              element.value = setting.value;
+            }
+          }
+        });
+      }
+    })
+    .catch(error => {
+      console.error('Error loading settings:', error);
+      document.getElementById('currentSettings').innerHTML = '<p>Error loading settings.</p>';
+    });
+}
+
+function saveSettings() {
+  const settings = {};
+  
+  // Collect all form inputs
+  const forms = document.querySelectorAll('form');
+  forms.forEach(form => {
+    const formData = new FormData(form);
+    for (let [key, value] of formData.entries()) {
+      settings[key] = value;
+    }
+  });
+
+  // Also collect checkboxes (they might not be in FormData if unchecked)
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  checkboxes.forEach(checkbox => {
+    settings[checkbox.name] = checkbox.checked ? 'true' : 'false';
+  });
+
+  // Save each setting individually
+  const savePromises = Object.entries(settings).map(([key, value]) => {
+    return fetch(`/api/settings/${key}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({value: value})
+    });
+  });
+
+  Promise.all(savePromises)
+    .then(responses => {
+      const allSuccessful = responses.every(r => r.ok);
+      if (allSuccessful) {
+        alert('Settings saved successfully!');
+        loadCurrentSettings(); // Refresh the display
+      } else {
+        alert('Some settings could not be saved. Please try again.');
+      }
+    })
+    .catch(error => {
+      console.error('Error saving settings:', error);
+      alert('Error saving settings. Please try again.');
+    });
+}
+</script>
+
+<style>
+.settings-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+}
+
+.settings-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.settings-section h3 {
+  margin-top: 0;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.settings-section label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+  gap: 5px;
+}
+
+.settings-section label input[type="checkbox"] {
+  width: auto;
+  margin-right: 10px;
+}
+
+.settings-section label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+}
+
+.settings-section input,
+.settings-section select,
+.settings-section textarea {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.settings-section textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+#currentSettings p {
+  margin: 8px 0;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+</style>
+{% endblock %}

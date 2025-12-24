@@ -1,0 +1,963 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header fade-in">
+  <div>
+    <h1><i class="fas fa-bed"></i> Rooms Management</h1>
+    <p class="page-description">Manage hotel rooms, maintenance schedules, and room status</p>
+  </div>
+  <div class="header-actions">
+    <a href="/room-types" class="btn btn-secondary">
+      <i class="fas fa-layer-group"></i> Manage Room Types
+    </a>
+    <button class="btn btn-warning" onclick="showMaintenanceScheduler()">
+      <i class="fas fa-tools"></i> Schedule Maintenance
+    </button>
+    <button class="btn btn-primary" onclick="showAddRoomForm()">
+      <i class="fas fa-plus"></i> Add Room
+    </button>
+  </div>
+</div>
+
+<!-- Room Status Overview -->
+<div class="grid stats">
+  <div class="card">
+    <h3><i class="fas fa-check-circle"></i> Available Rooms</h3>
+    <p id="available-count">0</p>
+  </div>
+  <div class="card">
+    <h3><i class="fas fa-user"></i> Occupied Rooms</h3>
+    <p id="occupied-count">0</p>
+  </div>
+  <div class="card">
+    <h3><i class="fas fa-tools"></i> Under Maintenance</h3>
+    <p id="maintenance-count">0</p>
+  </div>
+  <div class="card">
+    <h3><i class="fas fa-ban"></i> Out of Order</h3>
+    <p id="outoforder-count">0</p>
+  </div>
+</div>
+
+<!-- Maintenance Quick Actions -->
+<div class="panel slide-up">
+  <h2><i class="fas fa-wrench"></i> Maintenance Quick Actions</h2>
+  <div class="maintenance-actions">
+    <button class="btn btn-warning" onclick="bulkMaintenanceMode()">
+      <i class="fas fa-tools"></i> Bulk Maintenance Mode
+    </button>
+    <button class="btn btn-success" onclick="bulkMaintenanceComplete()">
+      <i class="fas fa-check"></i> Complete Maintenance
+    </button>
+    <button class="btn btn-secondary" onclick="showMaintenanceReport()">
+      <i class="fas fa-chart-bar"></i> Maintenance Report
+    </button>
+  </div>
+</div>
+
+<div class="table-container slide-up">
+  <div class="table-header">
+    <h2><i class="fas fa-list"></i> All Rooms</h2>
+    <div class="table-filters">
+      <select id="statusFilter" onchange="filterRooms()">
+        <option value="">All Status</option>
+        <option value="available">Available</option>
+        <option value="occupied">Occupied</option>
+        <option value="maintenance">Maintenance</option>
+        <option value="outoforder">Out of Order</option>
+      </select>
+      <input type="text" id="searchFilter" placeholder="Search rooms..." onkeyup="filterRooms()">
+    </div>
+  </div>
+  <table class="data-table" id="roomsTable">
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+        <th><i class="fas fa-door-open"></i> Room Number</th>
+        <th><i class="fas fa-bed"></i> Type</th>
+        <th><i class="fas fa-info-circle"></i> Status</th>
+        <th><i class="fas fa-calendar"></i> Last Maintenance</th>
+        <th><i class="fas fa-cogs"></i> Actions</th>
+      </tr>
+    </thead>
+    <tbody id="roomsBody">
+      <tr><td colspan="6" class="loading-row"><i class="fas fa-spinner fa-spin"></i> Loading rooms...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Room Modal -->
+<div id="addRoomModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span class="close" onclick="hideAddRoomForm()">&times;</span>
+    <h2><i class="fas fa-plus"></i> Add New Room</h2>
+    <form id="addRoomForm">
+      <div class="form-group">
+        <label><i class="fas fa-door-open"></i> Room Number:</label>
+        <input type="text" id="roomNumber" required placeholder="e.g., 101, A-205">
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-bed"></i> Room Type:</label>
+        <select id="roomType" required>
+          <option value="">Select Room Type</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-info-circle"></i> Status:</label>
+        <select id="roomStatus" required>
+          <option value="available">Available</option>
+          <option value="occupied">Occupied</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="outoforder">Out of Order</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-sticky-note"></i> Notes (Optional):</label>
+        <textarea id="roomNotes" placeholder="Any additional notes about the room..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save"></i> Add Room
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="hideAddRoomForm()">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Maintenance Scheduler Modal -->
+<div id="maintenanceModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span class="close" onclick="hideMaintenanceScheduler()">&times;</span>
+    <h2><i class="fas fa-tools"></i> Schedule Room Maintenance</h2>
+    <form id="maintenanceForm">
+      <div class="form-group">
+        <label><i class="fas fa-door-open"></i> Select Room:</label>
+        <select id="maintenanceRoom" required>
+          <option value="">Select Room</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-calendar"></i> Maintenance Date:</label>
+        <input type="date" id="maintenanceDate" required>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-clock"></i> Estimated Duration:</label>
+        <select id="maintenanceDuration" required>
+          <option value="1">1 Hour</option>
+          <option value="2">2 Hours</option>
+          <option value="4">4 Hours</option>
+          <option value="8">Full Day</option>
+          <option value="24">24+ Hours</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-wrench"></i> Maintenance Type:</label>
+        <select id="maintenanceType" required>
+          <option value="cleaning">Deep Cleaning</option>
+          <option value="plumbing">Plumbing</option>
+          <option value="electrical">Electrical</option>
+          <option value="hvac">HVAC/AC</option>
+          <option value="furniture">Furniture Repair</option>
+          <option value="painting">Painting</option>
+          <option value="general">General Maintenance</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-sticky-note"></i> Description:</label>
+        <textarea id="maintenanceDescription" required placeholder="Describe the maintenance work needed..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-warning">
+          <i class="fas fa-calendar-plus"></i> Schedule Maintenance
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="hideMaintenanceScheduler()">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Maintenance Report Modal -->
+<div id="reportModal" class="modal" style="display: none;">
+  <div class="modal-content large-modal">
+    <span class="close" onclick="hideMaintenanceReport()">&times;</span>
+    <h2><i class="fas fa-chart-bar"></i> Maintenance Report</h2>
+    <div class="report-content">
+      <div class="report-stats">
+        <div class="stat-card">
+          <h3>Pending Maintenance</h3>
+          <span class="stat-number" id="pendingMaintenance">0</span>
+        </div>
+        <div class="stat-card">
+          <h3>Completed This Month</h3>
+          <span class="stat-number" id="completedMaintenance">0</span>
+        </div>
+        <div class="stat-card">
+          <h3>Average Completion Time</h3>
+          <span class="stat-number" id="avgCompletionTime">0h</span>
+        </div>
+      </div>
+      <div class="maintenance-history">
+        <h3>Recent Maintenance Activities</h3>
+        <div id="maintenanceHistory">
+          <div class="maintenance-item">
+            <span class="room">Room 101</span>
+            <span class="type">Plumbing</span>
+            <span class="date">2 days ago</span>
+            <span class="status completed">Completed</span>
+          </div>
+          <div class="maintenance-item">
+            <span class="room">Room 205</span>
+            <span class="type">HVAC</span>
+            <span class="date">1 week ago</span>
+            <span class="status completed">Completed</span>
+          </div>
+          <div class="maintenance-item">
+            <span class="room">Room 303</span>
+            <span class="type">Deep Cleaning</span>
+            <span class="date">Today</span>
+            <span class="status pending">Pending</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.page-description {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-top: 0.5rem;
+}
+
+.maintenance-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.table-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.table-filters select,
+.table-filters input {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  font-size: 0.875rem;
+}
+
+.loading-row {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.large-modal .modal-content {
+  max-width: 800px;
+  width: 95%;
+}
+
+.report-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background: var(--bg-secondary);
+  padding: 1.5rem;
+  border-radius: var(--border-radius-sm);
+  text-align: center;
+}
+
+.stat-card h3 {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.maintenance-history {
+  background: var(--bg-secondary);
+  padding: 1.5rem;
+  border-radius: var(--border-radius-sm);
+}
+
+.maintenance-item {
+  display: grid;
+  grid-template-columns: 100px 120px 100px 100px;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+  align-items: center;
+}
+
+.maintenance-item:last-child {
+  border-bottom: none;
+}
+
+.maintenance-item .room {
+  font-weight: 600;
+}
+
+.maintenance-item .status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.status.completed {
+  background: #dcfdf7;
+  color: #065f46;
+}
+
+.status.pending {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.room-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.room-actions button {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: var(--border-radius-sm);
+}
+
+.maintenance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--warning-color);
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .maintenance-actions {
+    flex-direction: column;
+  }
+  
+  .table-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .table-filters {
+    flex-direction: column;
+  }
+  
+  .maintenance-item {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}
+</style>
+
+<script>
+let selectedRooms = [];
+let allRoomsData = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadRooms();
+  loadRoomTypes();
+  updateRoomCounts();
+  
+  // Add form submission handlers
+  document.getElementById('addRoomForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    createRoom();
+  });
+  
+  document.getElementById('maintenanceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    scheduleMaintenance();
+  });
+  
+  // Set default maintenance date to today
+  document.getElementById('maintenanceDate').valueAsDate = new Date();
+});
+
+function loadRooms() {
+  fetch('/api/rooms')
+    .then(response => response.json())
+    .then(data => {
+      allRoomsData = data;
+      displayRooms(data);
+      updateRoomCounts();
+      populateMaintenanceRoomSelect();
+    })
+    .catch(error => {
+      console.error('Error loading rooms:', error);
+      document.getElementById('roomsBody').innerHTML = '<tr><td colspan="6" class="loading-row"><i class="fas fa-exclamation-triangle"></i> Error loading rooms</td></tr>';
+    });
+}
+
+function displayRooms(rooms) {
+  const tbody = document.getElementById('roomsBody');
+  tbody.innerHTML = '';
+  
+  if (rooms.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-row"><i class="fas fa-info-circle"></i> No rooms found</td></tr>';
+    return;
+  }
+  
+  rooms.forEach(room => {
+    const row = document.createElement('tr');
+    const lastMaintenance = room.last_maintenance || 'Never';
+    const maintenanceBadge = room.status === 'maintenance' ? '<span class="maintenance-badge"><i class="fas fa-tools"></i> In Progress</span>' : '';
+    
+    row.innerHTML = `
+      <td><input type="checkbox" class="room-checkbox" value="${room.id}" onchange="updateSelectedRooms()"></td>
+      <td><strong>${room.number}</strong></td>
+      <td>${room.type}</td>
+      <td>
+        <span class="status ${room.status}">${room.status}</span>
+        ${maintenanceBadge}
+      </td>
+      <td>${lastMaintenance}</td>
+      <td>
+        <div class="room-actions">
+          <button class="btn btn-secondary" onclick="editRoom(${room.id})" title="Edit Room">
+            <i class="fas fa-edit"></i>
+          </button>
+          ${room.status !== 'maintenance' ? 
+            `<button class="btn btn-warning" onclick="quickMaintenance(${room.id})" title="Schedule Maintenance">
+              <i class="fas fa-tools"></i>
+            </button>` : 
+            `<button class="btn btn-success" onclick="completeMaintenance(${room.id})" title="Complete Maintenance">
+              <i class="fas fa-check"></i>
+            </button>`
+          }
+          <button class="btn btn-danger" onclick="deleteRoom(${room.id})" title="Delete Room">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function updateRoomCounts() {
+  const counts = {
+    available: 0,
+    occupied: 0,
+    maintenance: 0,
+    outoforder: 0
+  };
+  
+  allRoomsData.forEach(room => {
+    counts[room.status] = (counts[room.status] || 0) + 1;
+  });
+  
+  document.getElementById('available-count').textContent = counts.available;
+  document.getElementById('occupied-count').textContent = counts.occupied;
+  document.getElementById('maintenance-count').textContent = counts.maintenance;
+  document.getElementById('outoforder-count').textContent = counts.outoforder;
+}
+
+function loadRoomTypes() {
+  fetch('/api/room-types')
+    .then(response => response.json())
+    .then(data => {
+      const select = document.getElementById('roomType');
+      select.innerHTML = '<option value="">Select Room Type</option>';
+      data.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type.id;
+        option.textContent = type.name;
+        select.appendChild(option);
+      });
+    });
+}
+
+function populateMaintenanceRoomSelect() {
+  const select = document.getElementById('maintenanceRoom');
+  select.innerHTML = '<option value="">Select Room</option>';
+  
+  allRoomsData.filter(room => room.status !== 'maintenance').forEach(room => {
+    const option = document.createElement('option');
+    option.value = room.id;
+    option.textContent = `${room.number} - ${room.type}`;
+    select.appendChild(option);
+  });
+}
+
+function filterRooms() {
+  const statusFilter = document.getElementById('statusFilter').value;
+  const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+  
+  let filteredRooms = allRoomsData;
+  
+  if (statusFilter) {
+    filteredRooms = filteredRooms.filter(room => room.status === statusFilter);
+  }
+  
+  if (searchFilter) {
+    filteredRooms = filteredRooms.filter(room => 
+      room.number.toLowerCase().includes(searchFilter) ||
+      room.type.toLowerCase().includes(searchFilter)
+    );
+  }
+  
+  displayRooms(filteredRooms);
+}
+
+function toggleSelectAll() {
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('.room-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = selectAll.checked;
+  });
+  
+  updateSelectedRooms();
+}
+
+function updateSelectedRooms() {
+  selectedRooms = Array.from(document.querySelectorAll('.room-checkbox:checked')).map(cb => cb.value);
+}
+
+function createRoom() {
+  const data = {
+    number: document.getElementById('roomNumber').value,
+    room_type_id: parseInt(document.getElementById('roomType').value),
+    status: document.getElementById('roomStatus').value,
+    notes: document.getElementById('roomNotes').value
+  };
+  
+  fetch('/api/rooms', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      hideAddRoomForm();
+      loadRooms();
+      showNotification('Room created successfully!', 'success');
+    } else {
+      showNotification('Error: ' + (result.error || 'Unknown error'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error creating room:', error);
+    showNotification('Error creating room', 'error');
+  });
+}
+
+function showAddRoomForm() {
+  document.getElementById('addRoomModal').style.display = 'block';
+}
+
+function hideAddRoomForm() {
+  document.getElementById('addRoomModal').style.display = 'none';
+  document.getElementById('addRoomForm').reset();
+  
+  // Reset modal to add mode
+  document.querySelector('#addRoomModal h2').innerHTML = '<i class="fas fa-plus"></i> Add New Room';
+  const submitBtn = document.querySelector('#addRoomModal button[type="submit"]');
+  submitBtn.innerHTML = '<i class="fas fa-save"></i> Add Room';
+  submitBtn.onclick = function(e) {
+    e.preventDefault();
+    createRoom();
+  };
+}
+
+function showMaintenanceScheduler() {
+  document.getElementById('maintenanceModal').style.display = 'block';
+}
+
+function hideMaintenanceScheduler() {
+  document.getElementById('maintenanceModal').style.display = 'none';
+  document.getElementById('maintenanceForm').reset();
+  document.getElementById('maintenanceDate').valueAsDate = new Date();
+}
+
+function showMaintenanceReport() {
+  document.getElementById('reportModal').style.display = 'block';
+  // Simulate loading report data
+  document.getElementById('pendingMaintenance').textContent = allRoomsData.filter(r => r.status === 'maintenance').length;
+  document.getElementById('completedMaintenance').textContent = Math.floor(Math.random() * 20) + 10;
+  document.getElementById('avgCompletionTime').textContent = (Math.random() * 3 + 2).toFixed(1) + 'h';
+}
+
+function hideMaintenanceReport() {
+  document.getElementById('reportModal').style.display = 'none';
+}
+
+function scheduleMaintenance() {
+  const data = {
+    room_id: parseInt(document.getElementById('maintenanceRoom').value),
+    maintenance_date: document.getElementById('maintenanceDate').value,
+    duration: parseInt(document.getElementById('maintenanceDuration').value),
+    maintenance_type: document.getElementById('maintenanceType').value,
+    description: document.getElementById('maintenanceDescription').value
+  };
+  
+  // First update room status to maintenance
+  const roomId = data.room_id;
+  fetch(`/api/rooms/${roomId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ status: 'maintenance' })
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      hideMaintenanceScheduler();
+      loadRooms();
+      showNotification('Maintenance scheduled successfully!', 'success');
+    } else {
+      showNotification('Error scheduling maintenance', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error scheduling maintenance:', error);
+    showNotification('Error scheduling maintenance', 'error');
+  });
+}
+
+function quickMaintenance(roomId) {
+  document.getElementById('maintenanceRoom').value = roomId;
+  showMaintenanceScheduler();
+}
+
+function completeMaintenance(roomId) {
+  if (confirm('Mark this room maintenance as complete?')) {
+    const data = {
+      status: 'available',
+      last_maintenance: new Date().toISOString().split('T')[0]
+    };
+    
+    fetch(`/api/rooms/${roomId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+      if (result.success) {
+        loadRooms();
+        showNotification('Maintenance completed successfully!', 'success');
+      } else {
+        showNotification('Error completing maintenance', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error completing maintenance:', error);
+      showNotification('Error completing maintenance', 'error');
+    });
+  }
+}
+
+function bulkMaintenanceMode() {
+  if (selectedRooms.length === 0) {
+    showNotification('Please select rooms first', 'warning');
+    return;
+  }
+  
+  if (confirm(`Set ${selectedRooms.length} selected rooms to maintenance mode?`)) {
+    const promises = selectedRooms.map(roomId => 
+      fetch(`/api/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'maintenance' })
+      })
+    );
+    
+    Promise.all(promises)
+      .then(() => {
+        loadRooms();
+        showNotification(`${selectedRooms.length} rooms set to maintenance mode`, 'success');
+        selectedRooms = [];
+        document.getElementById('selectAll').checked = false;
+      })
+      .catch(error => {
+        console.error('Error setting bulk maintenance:', error);
+        showNotification('Error setting bulk maintenance', 'error');
+      });
+  }
+}
+
+function bulkMaintenanceComplete() {
+  const maintenanceRooms = allRoomsData.filter(room => room.status === 'maintenance');
+  
+  if (maintenanceRooms.length === 0) {
+    showNotification('No rooms in maintenance mode', 'info');
+    return;
+  }
+  
+  if (confirm(`Complete maintenance for all ${maintenanceRooms.length} rooms in maintenance?`)) {
+    const promises = maintenanceRooms.map(room => 
+      fetch(`/api/rooms/${room.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          status: 'available',
+          last_maintenance: new Date().toISOString().split('T')[0]
+        })
+      })
+    );
+    
+    Promise.all(promises)
+      .then(() => {
+        loadRooms();
+        showNotification(`Maintenance completed for ${maintenanceRooms.length} rooms`, 'success');
+      })
+      .catch(error => {
+        console.error('Error completing bulk maintenance:', error);
+        showNotification('Error completing bulk maintenance', 'error');
+      });
+  }
+}
+
+function editRoom(id) {
+  // First fetch the room data
+  fetch(`/api/rooms`)
+    .then(response => response.json())
+    .then(rooms => {
+      const room = rooms.find(r => r.id === id);
+      if (room) {
+        document.getElementById('roomNumber').value = room.number;
+        document.getElementById('roomType').value = room.room_type_id;
+        document.getElementById('roomStatus').value = room.status;
+        document.getElementById('roomNotes').value = room.notes || '';
+        
+        // Change the modal title and button text
+        document.querySelector('#addRoomModal h2').innerHTML = '<i class="fas fa-edit"></i> Edit Room';
+        const submitBtn = document.querySelector('#addRoomModal button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Room';
+        submitBtn.onclick = function(e) {
+          e.preventDefault();
+          updateRoom(id);
+        };
+        
+        document.getElementById('addRoomModal').style.display = 'block';
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching room data:', error);
+      showNotification('Error loading room data', 'error');
+    });
+}
+
+function updateRoom(id) {
+  const data = {
+    number: document.getElementById('roomNumber').value,
+    room_type_id: parseInt(document.getElementById('roomType').value),
+    status: document.getElementById('roomStatus').value,
+    notes: document.getElementById('roomNotes').value
+  };
+  
+  fetch(`/api/rooms/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      hideAddRoomForm();
+      loadRooms();
+      showNotification('Room updated successfully!', 'success');
+    } else {
+      showNotification('Error: ' + (result.error || 'Unknown error'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error updating room:', error);
+    showNotification('Error updating room', 'error');
+  });
+}
+
+function deleteRoom(id) {
+  if (confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
+    fetch(`/api/rooms/${id}`, {
+      method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(result => {
+      if (result.success) {
+        loadRooms();
+        showNotification('Room deleted successfully!', 'success');
+      } else {
+        showNotification('Error: ' + (result.error || 'Unknown error'), 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error deleting room:', error);
+      showNotification('Error deleting room', 'error');
+    });
+  }
+}
+
+function showNotification(message, type = 'info') {
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.innerHTML = `
+    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
+    <span>${message}</span>
+  `;
+  
+  // Add to page
+  document.body.appendChild(notification);
+  
+  // Auto remove after 3 seconds
+  setTimeout(() => {
+    notification.classList.add('fade-out');
+    setTimeout(() => {
+      document.body.removeChild(notification);
+    }, 300);
+  }, 3000);
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+  const modals = ['addRoomModal', 'maintenanceModal', 'reportModal'];
+  modals.forEach(modalId => {
+    const modal = document.getElementById(modalId);
+    if (event.target == modal) {
+      modal.style.display = 'none';
+    }
+  });
+}
+</script>
+
+<style>
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  padding: 1rem;
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 10000;
+  min-width: 300px;
+  animation: slideInRight 0.3s ease-out;
+}
+
+.notification.success {
+  border-left: 4px solid var(--success-color);
+  color: var(--success-color);
+}
+
+.notification.error {
+  border-left: 4px solid var(--danger-color);
+  color: var(--danger-color);
+}
+
+.notification.warning {
+  border-left: 4px solid var(--warning-color);
+  color: var(--warning-color);
+}
+
+.notification.info {
+  border-left: 4px solid var(--primary-color);
+  color: var(--primary-color);
+}
+
+.notification.fade-out {
+  animation: slideOutRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+</style>
+{% endblock %}
