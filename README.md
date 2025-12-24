@@ -1,6 +1,6 @@
-# HotelSync - Application Directory
+# BookNStay - Application Directory
 
-This is the main application directory for the HotelSync Hotel Management System.
+This is the main application directory for the BookNStay - Hotel Management System.
 
 ## Quick Start
 
@@ -11,7 +11,7 @@ This is the main application directory for the HotelSync Hotel Management System
 
 2. **Run the Application**
    ```bash
-   python run.py
+   python3 run.py
    ```
 
 3. **Access the Application**
